@@ -1,0 +1,11 @@
+{
+    "graph_diameter": 0,
+    "avg_out_degree": 8.592012951969778,
+    "max_out_degree": 1090,
+    "num_nodes": 3706,
+    "num_channels": 31842,
+    "total_network_capacity": "74916023733",
+    "avg_channel_size": 2352742.4072922557,
+    "min_channel_size": "1100",
+    "max_channel_size": "16777216"
+}
