@@ -1,0 +1,165 @@
+import networkx as nx
+import json
+import os.path
+import requests
+import operator
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy import stats
+from matplotlib import pylab
+from collections import OrderedDict
+
+def main():
+    #averageShortestPathLengths()
+    #edgeNovsNodeNo()
+    attackingHighDegrees()
+
+def attackingHighDegrees():
+    fileNames = getFileNames()
+    PP = []  # probability that a random node belongs to the giant component
+    p = []  # percolation threshold
+    for i in range(len(fileNames)):
+        data = readFile(fileNames[i][1])
+        G = defineGraph(data)
+        #prune smaller components from the graph
+        toBeDeleted = []
+        for j in range(len(list(nx.connected_components(G)))):
+            if len(list(nx.connected_components(G))[j]) < 100:
+                print(i, j, len(list(nx.connected_components(G))[j]))
+                for k in list(nx.connected_components(G))[j]:
+                    toBeDeleted.append(k)
+        G.remove_nodes_from(toBeDeleted)
+        originalGiantComponentSize = G.order()
+        percolationThreshold = 0
+        for x in range(1000):
+            highestDegrees = sorted(G.degree, key=lambda x: x[1], reverse=True)
+            G.remove_node(next(iter(highestDegrees))[0])
+            percolationThreshold += 1
+            largest_cc = max(nx.connected_components(G), key=len)
+            if (len(largest_cc) < originalGiantComponentSize / 100):
+                print("Percolation Threshold: ", percolationThreshold, percolationThreshold / originalGiantComponentSize)
+                p.append(percolationThreshold/originalGiantComponentSize)
+                break
+
+    plt.plot(p)
+
+    plt.xlabel('Number of days passed since 2019, January 30th')
+    # Make the y-axis label, ticks and tick labels match the line color.
+    plt.ylabel('Percolation Threshold')
+    pylab.title('Percolation threshold over the lifetime of LN')
+
+    # Put a nicer background color on the legend.
+    # legend.get_frame().set_facecolor('C0')
+
+    plt.tight_layout()
+    plt.show()
+
+
+
+def edgeNovsNodeNo():
+    fileNames = getFileNames()
+    edgeNo = []
+    nodeNo = []
+    for i in range(0,len(fileNames)-2):
+        data = readFile(fileNames[i][1])
+        G = defineGraph(data)
+        edgeNo.append(G.number_of_edges())
+        nodeNo.append(G.order())
+        print(G.order(),G.number_of_edges())
+        G.clear()
+
+    slope, intercept, r_value, p_value, std_err = stats.linregress(nodeNo, edgeNo)
+    line = slope * np.asarray(nodeNo) + intercept
+
+    plt.plot(nodeNo, edgeNo, 'o', nodeNo, line)
+
+
+    plt.xlabel('Number of nodes')
+    # Make the y-axis label, ticks and tick labels match the line color.
+    plt.ylabel('Number of edges', color='b')
+    pylab.title('Linear Fit for LN payment channel growth')
+
+
+    # Put a nicer background color on the legend.
+    # legend.get_frame().set_facecolor('C0')
+
+    plt.tight_layout()
+    plt.show()
+
+
+
+def averageShortestPathLengths():
+    fileNames = getFileNames()
+    avgShortestPathLengths=[]
+    avgDegree = []
+    for i in range(0,len(fileNames)):
+        data = readFile(fileNames[i][1])
+        G = defineGraph(data)
+        #avg degree
+        avgDegree.append(G.number_of_edges()/G.order())
+        print(i,G.number_of_edges()/G.order())
+        #prune smaller components
+        toBeDeleted = []
+        for j in range(len(list(nx.connected_components(G)))):
+            if len(list(nx.connected_components(G))[j]) < 100:
+                print(i,j,len(list(nx.connected_components(G))[j]))
+                for k in list(nx.connected_components(G))[j]:
+                    toBeDeleted.append(k)
+        G.remove_nodes_from(toBeDeleted)
+        avgShortestPath = nx.algorithms.shortest_paths.generic.average_shortest_path_length(G)
+        print(avgShortestPath)
+        avgShortestPathLengths.append(avgShortestPath)
+        G.clear()
+
+    fig, ax1 = plt.subplots()
+    t = np.arange(0, len(fileNames), 1)
+    lns1 = ax1.plot(t, avgShortestPathLengths, 'b-', label='Avg Shortest Paths')
+    ax1.set_xlabel('Days passed since 2019, January 30th 12 CET')
+    # Make the y-axis label, ticks and tick labels match the line color.
+    ax1.set_ylabel('Average Shortest Path Lengths', color='b')
+    ax1.tick_params('y', colors='b')
+
+    ax2 = ax1.twinx()
+    lns2 = ax2.plot(t, avgDegree, 'r-', label='Average Degree')
+    ax2.set_ylabel('Average Out Degree', color='r')
+    ax2.tick_params('y', colors='r')
+
+    # added these three lines
+    lns = lns1 + lns2# + lns3
+    labs = [l.get_label() for l in lns]
+    ax1.legend(lns, labs, loc='best')
+
+    # Put a nicer background color on the legend.
+    # legend.get_frame().set_facecolor('C0')
+
+    fig.tight_layout()
+    plt.show()
+
+def defineGraph(data) -> object:
+    G = nx.Graph()
+    for x in range(len(data)):
+        G.add_edge(data[x]['node2_pub'], data[x]['node1_pub'], capacity=data[x]['capacity'])
+    return G
+
+def readFile(fileName) -> object:
+    with open(fileName) as f:
+        data = json.load(f)
+    return data['edges']
+
+
+def getFileNames():
+    fileNames = []
+    for a, b, c in os.walk('../LNdata/lncaptures/lngraph/2019'):
+        if (b == []):
+            for i in c:
+                fileNames.append(str(a) + '/' + i)
+    Files = {}
+    for i in fileNames:
+        f = open(i, "r")
+        timestamp = os.path.basename(i)[:-5]
+        Files[timestamp] = i
+    sortedFiles = sorted(Files.items(), key=lambda t: t[0])
+    return sortedFiles
+
+if __name__ == '__main__':
+    main()
