@@ -131,10 +131,12 @@ keys]{cryptocode}
 
 
 \title{Dynamic Network Analysis of Bitcoin's Lightning Network}
-\author[1]{István András Seres}
-\author[2]{Claas Brüß}
-\affil[1]{Department of Computer Algebra, Eötvös Loránd University}
-\affil[2]{Technise Universität München}
+\author[1]{Ferenc Béres}
+\author[2]{István András Seres}
+\author[3]{Claas Brüß}
+\affil[1]{MTA SZTAKI}
+\affil[2]{Department of Computer Algebra, Eötvös Loránd University}
+\affil[3]{Technise Universität München}
 \begin{document}
 \maketitle
 
@@ -144,6 +146,27 @@ keys]{cryptocode}
 \keywords{Bitcoin, Lightning Network, Network Security, Network Topology, Payment Channel Network, Network Robustness}
 
 \section{Introduction}
+\section{Notation}
+Let $E(t)$ and $N(t)$ denote the number of edges and nodes at time $t$ respectively.
+\section{LN's evolution}
+\subsection{Macroscopic evolution}
+Ever since LN had been launched its popularity steadily grew, causing its average degree increasing over time. In \cite{leskovec2008dynamics} it was shown that densification of real networks follow power-law distribution, i.e.: 
+\begin{equation}
+	E(t) \propto N(t)^{a},
+\end{equation} \label{rel:dpl}
+where we call $a$ the power law densification exponent, where  $1\leq a \leq 2$. If $a=1$, then average degree of the network is constant over time, on the other hand if $a=2$, the network is an extremely dense graph, where each node has, on average, edges to a constant fraction of all nodes \cite{leskovec2008dynamics}. We found that LN is no exception to the DPL rule (\ref{rel:dpl}).
+
+\begin{figure}[H]
+	\includegraphics[width=\textwidth]{densificationPowerLaw.png}
+	\label{fig:densification}
+	\caption{LN follows the Densification Power Law relation with exponent $a=1.55634117$}
+\end{figure}
+
+\subsection{Microscopic evolution}
+\section{Link prediction}
+\section{Fee (sub)optimality}
+\section{Conclusion}
+\section{Acknowledgements}
 
 
 \bibliographystyle{plain}

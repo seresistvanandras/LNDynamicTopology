@@ -4,9 +4,84 @@ import requests
 import operator
 import matplotlib.pyplot as plt
 import numpy as np
+import csv
+
+from matplotlib.patches import Circle
+from matplotlib.offsetbox import (TextArea, DrawingArea, OffsetImage,
+                                  AnnotationBbox)
+from matplotlib.cbook import get_sample_data
 
 def main():
-    capacity()
+    #capacity()
+    nodesPerEdges()
+
+def getEdgeData():
+    with open('edges_historic.csv', 'r') as f:
+        reader = csv.reader(f)
+        edgeData = list(reader)
+        return edgeData
+
+def getNodeData():
+    with open('nodes_historic.csv', 'r') as f:
+        reader = csv.reader(f)
+        nodeData = list(reader)
+        return nodeData
+
+#https://bitcoinvisuals.com/lightning
+def nodesPerEdges():
+    edgeData = getEdgeData()
+    nodeData = getNodeData()
+
+    edgeNumber = []
+    nodeNumber = []
+    avgDegree = []
+    for i in range(24,len(nodeData),10):
+        nodeNumber.append(int(nodeData[i][2]))
+        edgeNumber.append(int(edgeData[i][2]))
+        avgDegree.append(int(edgeData[i][2])/int(nodeData[i][2]))
+
+    print(int(min(nodeNumber)), int(max(nodeNumber)))
+    print(nodeNumber)
+    print(edgeNumber)
+
+
+    logNodes = np.log(nodeNumber)
+    logEdges = np.log(edgeNumber)
+
+    z = np.polyfit(logNodes, logEdges, 1)
+    print(z) ##[ 1.55634117 -2.45480086]
+
+    logpredicted = np.add(np.multiply(logNodes,z[0]),z[1])
+    predicted = np.multiply(np.power(nodeNumber,z[0]),np.power(np.exp(1),z[1]))
+
+    fig, ax = plt.subplots()
+    ax.plot(nodeNumber, edgeNumber, nodeNumber, predicted)
+    plt.xlabel("Number of nodes")
+    plt.ylabel("Number of edges")
+
+    plt.legend(['Empirical','Predicted'], loc='upper left')
+    fig.tight_layout()
+
+    offsetbox = TextArea("2018 Jan", minimumdescent=False)
+
+    ab = AnnotationBbox(offsetbox, (500,1750),
+                        xybox=(20, 40),
+                        xycoords='data',
+                        boxcoords="offset points",
+                        arrowprops=dict(arrowstyle="->"))
+    ax.add_artist(ab)
+
+    offsetbox2 = TextArea("2019 Apr", minimumdescent=False)
+
+    ab = AnnotationBbox(offsetbox2, (4200, 35000),
+                        xybox=(20, 40),
+                        xycoords='data',
+                        boxcoords="offset points",
+                        arrowprops=dict(arrowstyle="->"))
+    ax.add_artist(ab)
+    plt.show()
+
+
 
 def capacity():
     fileNames = getFileNames()
@@ -85,10 +160,6 @@ def capacity():
 
     fig.tight_layout()
     plt.show()
-
-
-
-
 
 
 def getFileNames():
