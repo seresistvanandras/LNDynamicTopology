@@ -8,11 +8,21 @@ def load_temp_data(json_files, node_keys=["pub_key","last_update"], edge_keys=["
     """Load LN graph json files from several snapshots"""
     node_info, edge_info = [], []
     last_node_update, last_edge_update = 0, 0
+    first = True
     for json_f in json_files:
         with open(json_f) as f:
             tmp_json = json.load(f)
         new_nodes = pd.DataFrame(tmp_json["nodes"])[node_keys]
         new_edges = pd.DataFrame(tmp_json["edges"])[edge_keys]
+        if first:
+            nodes = new_nodes
+            edges = new_edges
+            first = False
+        else:
+            nodes = pd.concat([nodes,new_nodes]).drop_duplicates()
+            edges = pd.concat([edges,new_edges]).drop_duplicates()
+            print(json_f, len(nodes), len(edges))
+        """
         #print(len(new_edges))
         FILTER_TIME = 2524611600 #Human time (GMT): Saturday, January 1, 2050 1:00:00 AM
         new_edges = new_edges[new_edges["last_update"] < FILTER_TIME]
@@ -20,17 +30,27 @@ def load_temp_data(json_files, node_keys=["pub_key","last_update"], edge_keys=["
         new_nodes = new_nodes[new_nodes["last_update"] > last_node_update]
         new_edges = new_edges[new_edges["last_update"] > last_edge_update]
         print(json_f, len(new_nodes), len(new_edges))
-        node_info.append(new_nodes)
-        edge_info.append(new_edges)
-        last_node_update = new_nodes["last_update"].max()
-        last_edge_update = new_edges["last_update"].max()
-    return pd.concat(node_info), pd.concat(edge_info)
+        if len(new_nodes) > 0:
+            node_info.append(new_nodes)
+            last_node_update = new_nodes["last_update"].max()
+        else:
+            print("NO NEW NODES!!!")
+        if len(new_edges) > 0:
+            edge_info.append(new_edges)
+            last_edge_update = new_edges["last_update"].max()
+        else:
+            print("NO NEW EDGES!!!")
+        #print(last_node_update, last_edge_update)
+        """
+    return nodes, edges
+    #return pd.concat(node_info), pd.concat(edge_info)
 
-def get_snapshots(edges_df, min_time, max_time, with_time=False, time_window=86400):
+
+def get_snapshots(edges_df, min_time, max_time, with_data=False, time_window=86400):
     """Split the LN network edges into snapshots based on the provided time window"""
     snapshots, current_snapshot = [], []
     snapshot_start, idx = min_time, 0
-    for src, trg, time in list(zip(edges_df["node1_pub"],edges_df["node2_pub"],edges_df["last_update"])):
+    for src, trg, time, cap in list(zip(edges_df["node1_pub"],edges_df["node2_pub"],edges_df["last_update"], edges_df["capacity"])):
         if time > snapshot_start + time_window:
             snapshots.append(current_snapshot)
             print(idx, len(current_snapshot))
@@ -39,13 +59,13 @@ def get_snapshots(edges_df, min_time, max_time, with_time=False, time_window=864
             idx += 1
             if snapshot_start > max_time:
                 break
-        if with_time:
-            current_snapshot.append((src,trg,time))
+        if with_data:
+            current_snapshot.append((src,trg,{'capacity':cap,'last_update':time}))
         else:
             current_snapshot.append((src,trg))
     return snapshots
 
-def get_snapshot_properties(snapshots, window=1, is_directed=True):
+def get_snapshot_properties(snapshots, window=1, is_directed=True, weight=None):
     """Calculate network properties for each snapshot"""
     stats = []
     for idx in range(len(snapshots)):
@@ -59,17 +79,17 @@ def get_snapshot_properties(snapshots, window=1, is_directed=True):
             G = nx.Graph()
         G.add_edges_from(window_edges)
         print(G.number_of_edges(), G.number_of_nodes())
-        stats.append(calculate_centralities(G))
+        stats.append(calculate_centralities(G,weight))
     return stats
             
-def calculate_centralities(G):
+def calculate_centralities(G,weight=None):
     """Calculate centrality measures"""
     res = {
         "deg": nx.degree_centrality(G),
         "in_deg": nx.in_degree_centrality(G),
         "out_deg": nx.out_degree_centrality(G),
-        "pr": nx.pagerank(G),
-        "betw": nx.betweenness_centrality(G, k=None),
+        "pr": nx.pagerank(G,weight=weight),
+        "betw": nx.betweenness_centrality(G, k=None, weight=weight),
         "harm": nx.harmonic_centrality(G)
     }
     print("Centralities COMPUTED")
