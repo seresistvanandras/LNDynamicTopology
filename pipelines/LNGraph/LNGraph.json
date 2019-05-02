@@ -1,0 +1,43 @@
+{
+    "config_path": "pipelines/LNGraph/LNGraph.json",
+    "description": "Experimenting with Bitcoin LN network over time.",
+    "id": "0",
+    "imports": [
+        {
+            "kernel_type": "py3-env",
+            "name": "ln_utils",
+            "path": "feri_sandbox/ln_utils.py",
+            "type": "Utils"
+        }
+    ],
+    "name": "LNGraph",
+    "notebooks": [
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "CapacityAnalysis",
+            "path": "feri_sandbox/CapacityAnalysis.ipynb",
+            "pipeline_status": "off",
+            "type": "Experiment"
+        },
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "FirstLook",
+            "path": "feri_sandbox/FirstLook.ipynb",
+            "pipeline_status": "off",
+            "type": "Data"
+        },
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "TemporalAnalysis",
+            "path": "feri_sandbox/TemporalAnalysis.ipynb",
+            "pipeline_status": "off",
+            "type": "Experiment"
+        }
+    ],
+    "parameter_notebooks": [],
+    "py_scripts": [],
+    "reports": []
+}
