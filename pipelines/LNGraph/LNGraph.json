@@ -17,7 +17,7 @@
             "kernel_type": "py3-env",
             "name": "CapacityAnalysis",
             "path": "feri_sandbox/CapacityAnalysis.ipynb",
-            "pipeline_status": "off",
+            "pipeline_status": "on",
             "type": "Experiment"
         },
         {
@@ -33,11 +33,20 @@
             "kernel_type": "py3-env",
             "name": "TemporalAnalysis",
             "path": "feri_sandbox/TemporalAnalysis.ipynb",
-            "pipeline_status": "off",
+            "pipeline_status": "on",
             "type": "Experiment"
         }
     ],
     "parameter_notebooks": [],
     "py_scripts": [],
-    "reports": []
+    "reports": [
+        {
+            "date": "2019-05-03",
+            "id": "temp_ln_analysis_with_capacities_2019-05-03",
+            "name": "temp_LN_analysis_with_capacities",
+            "note": "Analysis of Bitcoin LN network using edge capacities",
+            "type": "local",
+            "user": "fberes"
+        }
+    ]
 }
