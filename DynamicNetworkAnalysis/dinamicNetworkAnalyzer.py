@@ -10,9 +10,9 @@ from matplotlib import pylab
 from collections import OrderedDict
 
 def main():
-    #averageShortestPathLengths()
+    averageShortestPathLengths()
     #edgeNovsNodeNo()
-    attackingHighDegrees()
+    #attackingHighDegrees()
 
 def attackingHighDegrees():
     fileNames = getFileNames()
