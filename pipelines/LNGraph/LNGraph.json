@@ -31,8 +31,8 @@
         {
             "is_clone": "no",
             "kernel_type": "py3-env",
-            "name": "TemporalAnalysis",
-            "path": "feri_sandbox/TemporalAnalysis.ipynb",
+            "name": "CentralityAnalysis",
+            "path": "feri_sandbox/CentralityAnalysis.ipynb",
             "pipeline_status": "on",
             "type": "Experiment"
         }

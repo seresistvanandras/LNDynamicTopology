@@ -1,5 +1,6 @@
 import json
 import pandas as pd
+import numpy as np
 import networkx as nx
 import scipy.stats as st
 import matplotlib.pyplot as plt
@@ -14,16 +15,6 @@ def load_temp_data(json_files, node_keys=["pub_key","last_update"], edge_keys=["
             tmp_json = json.load(f)
         new_nodes = pd.DataFrame(tmp_json["nodes"])[node_keys]
         new_edges = pd.DataFrame(tmp_json["edges"])[edge_keys]
-        """
-        if first:
-            nodes = new_nodes
-            edges = new_edges
-            first = False
-        else:
-            nodes = pd.concat([nodes,new_nodes]).drop_duplicates()
-            edges = pd.concat([edges,new_edges]).drop_duplicates()
-            print(json_f, len(nodes), len(edges))
-        """
         #print(len(new_edges))
         FILTER_TIME = 2524611600 #Human time (GMT): Saturday, January 1, 2050 1:00:00 AM
         new_edges = new_edges[new_edges["last_update"] < FILTER_TIME]
@@ -49,6 +40,7 @@ def load_temp_data(json_files, node_keys=["pub_key","last_update"], edge_keys=["
     edges_no_loops = edges[edges["node1_pub"] != edges["node2_pub"]]
     return pd.concat(node_info), edges_no_loops
 
+### network centrality analysis ###
 
 def get_snapshots(edges_df, min_time, max_time, with_data=False, time_window=86400):
     """Split the LN network edges into snapshots based on the provided time window"""
@@ -89,9 +81,10 @@ def get_snapshot_properties(snapshots, window=1, is_directed=False, weight=None)
 def calculate_centralities(G,weight=None):
     """Calculate centrality measures"""
     res = {
-        "deg": dict(nx.degree(G, weight=weight)),
+        "deg": dict(G.degree(weight=None)),
+        "wdeg": dict(G.degree(weight=weight)),
         "pr": nx.pagerank(G, weight=weight),
-        "betw": nx.betweenness_centrality(G, k=None, weight=weight),
+        "betw": nx.betweenness_centrality(G),#, weight=weight, k=None),
         "harm": nx.harmonic_centrality(G)
     }
     print("Centralities COMPUTED")
@@ -109,13 +102,13 @@ def calc_corr(df, cent, corr_type="pearson"):
         return st.pearsonr(df[cent + "_0"], df[cent + "_1"])[0]
     
 def get_corr_sequence(stats, corr_type):
-    res = {"deg":[],"pr":[],"betw":[],"harm":[]}
+    res = {"deg":[],"wdeg":[],"pr":[],"betw":[],"harm":[]}
     for idx in range(1,len(stats)):
         df1 = stats[idx-1]
         df2 = stats[idx]
         merged_df = df1.merge(df2, on="index", suffixes=("_0","_1"))
         merged_df = merged_df.fillna(0.0)
-        for cent in  ["deg","pr","betw","harm"]:
+        for cent in  ["deg","wdeg","pr","betw","harm"]:
             res[cent].append(calc_corr(merged_df, cent, corr_type))
     return res
 
@@ -127,3 +120,91 @@ def show_corr_results(results, cent):
         plt.plot(range(len(vals)), vals, label=corr)
     plt.legend()
     plt.show()
+    
+### Link prediction ###
+
+def calc_centralities(G):
+    print("Calculate centralities STARTED")
+    degree = dict(nx.degree(G))
+    w_degree = dict(G.degree(weight="capacity"))
+    betw = nx.betweenness_centrality(G)
+    pr = nx.pagerank(G, weight="capacity")
+    betw_rank = dict(zip(betw.keys(),st.rankdata(-np.array(list(betw.values())))))
+    degree_rank = dict(zip(degree.keys(),st.rankdata(-np.array(list(degree.values())))))
+    w_degree_rank = dict(zip(w_degree.keys(),st.rankdata(-np.array(list(w_degree.values())))))
+    pr_rank = dict(zip(pr.keys(),st.rankdata(-np.array(list(pr.values())))))
+    print("Calculate centralities FINISHED")
+    scores = {"deg":degree, "wdeg":w_degree, "betw": betw, "pr":pr}
+    ranks = {"deg":degree_rank, "wdeg":w_degree_rank, "betw": betw_rank, "pr":pr_rank}
+    return scores, ranks
+
+def analyse_last_snapshot(last_snap_file, edge_keys):
+    init_nodes, init_edges = load_temp_data([last_snap_file], edge_keys=edge_keys)
+    last_time = init_edges["last_update"].max()
+    print(len(init_nodes), len(init_edges), last_time)
+    N = set(init_nodes["pub_key"])
+    E = init_edges[["node1_pub","node2_pub","channel_id","capacity"]].drop_duplicates()
+    E = E.groupby(["node1_pub","node2_pub"])["capacity"].sum().reset_index()
+    G = nx.from_pandas_dataframe(E, source="node1_pub", target="node2_pub", edge_attr="capacity", create_using=nx.Graph())
+    print(G.number_of_nodes(), G.number_of_edges())
+    scores, ranks = calc_centralities(G)
+    return N, E, scores, ranks, last_time
+
+def get_new_node_attachements(edges, known_nodes, node_ranks):
+    new_node_records = []
+    homophily_edges = []
+    for idx, row in edges.iterrows():
+        n1, n2, t = row["node1_pub"], row["node2_pub"], row["last_update"]
+        b1 = n1 in known_nodes
+        b2 = n2 in known_nodes
+        if b1 and not b2:
+            new, old = n2, n1
+        elif b2 and not b1:
+            new, old = n1, n2
+        else:
+            homophily_edges.append((n1,n2))
+            continue
+        new_node_records.append((t, new, old, node_ranks["betw"][old], node_ranks["deg"][old], node_ranks["pr"][old], node_ranks["wdeg"][old]))
+    attachments_df = pd.DataFrame(new_node_records, columns=["time","new_node","old_node","betw_rank","degree_rank","pr_rank", "w_degree_rank"])
+    return attachments_df, homophily_edges
+
+def observe_node_attachements_over_time(files, first_index=1, window=7, edge_keys=["node1_pub","node2_pub","last_update","capacity","channel_id"]):
+    num_files = len(files)
+    idx = first_index
+    attachments, node_list, scores_list, ranks_list = [], [], [], []
+    while idx < num_files:
+        # process last snapshot
+        N, _, scores, ranks, _ = analyse_last_snapshot(files[idx-1], edge_keys)
+        # process the last time window
+        nodes, edges = load_temp_data(files[idx:idx+window], edge_keys=edge_keys)
+        # discover new node attachements
+        attachments_df, homophily = get_new_node_attachements(edges, N, ranks)
+        attachments.append(attachments_df)
+        node_list.append(N)
+        scores_list.append(scores)
+        ranks_list.append(ranks)
+        idx += window
+    print()
+    return attachments, node_list, scores_list, ranks_list
+
+def get_attachement_popularity(attachments):
+    pops = [att["old_node"].value_counts() for att in attachments]
+    pop_df = pd.DataFrame(pops).T
+    pop_df.columns = range(pop_df.shape[1])
+    pop_df = pop_df.fillna(0.0)
+    return pop_df
+
+def corr_mx(df, method="spearman"):
+    s = df.shape[1]
+    arr = df.values
+    corr = np.ones((s,s))
+    for i in range(s):
+        for j in range(i+1,s):
+            if method == "wkendall":
+                corr[i,j] = st.weightedtau(arr[:,i],arr[:,j])[0]
+            elif method == "kendall":
+                corr[i,j] = st.kendalltau(arr[:,i],arr[:,j])[0]
+            else:
+                corr[i,j] = st.spearmanr(arr[:,i],arr[:,j])[0]
+            corr[j,i] = corr[i,j]
+    return pd.DataFrame(corr, columns=df.columns)
