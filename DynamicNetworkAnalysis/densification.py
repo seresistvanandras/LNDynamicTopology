@@ -48,11 +48,22 @@ def nodesPerEdges():
     logNodes = np.log(nodeNumber)
     logEdges = np.log(edgeNumber)
 
-    z = np.polyfit(logNodes, logEdges, 1)
-    print(z) ##[ 1.55634117 -2.45480086]
+    coeffs = np.polyfit(logNodes, logEdges, 1)
+    print(coeffs) ##[ 1.55634117 -2.45480086]
 
-    logpredicted = np.add(np.multiply(logNodes,z[0]),z[1])
-    predicted = np.multiply(np.power(nodeNumber,z[0]),np.power(np.exp(1),z[1]))
+    logpredicted = np.add(np.multiply(logNodes,coeffs[0]),coeffs[1])
+    predicted = np.multiply(np.power(nodeNumber,coeffs[0]),np.power(np.exp(1),coeffs[1]))
+
+
+    # r-squared
+    p = np.poly1d(coeffs)
+    # fit values, and mean
+    yhat = p(logNodes)  # or [p(z) for z in x]
+    ybar = np.sum(logEdges) / len(logEdges)  # or sum(y)/len(y)
+    ssreg = np.sum((yhat - ybar) ** 2)  # or sum([ (yihat - ybar)**2 for yihat in yhat])
+    sstot = np.sum((logEdges - ybar) ** 2)  # or sum([ (yi - ybar)**2 for yi in y])
+
+    print("Coefficient of determination: ", ssreg / sstot)
 
     fig, ax = plt.subplots()
     ax.plot(nodeNumber, edgeNumber, nodeNumber, predicted)
