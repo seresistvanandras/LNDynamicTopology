@@ -8,11 +8,64 @@ import numpy as np
 from scipy import stats
 from matplotlib import pylab
 from collections import OrderedDict
+from bisect import bisect_left
 
 def main():
-    averageShortestPathLengths()
+    effectiveDiameter()
     #edgeNovsNodeNo()
     #attackingHighDegrees()
+
+def removeSmallComponents(G):
+    for component in list(nx.connected_components(G)):
+        if len(component) < 100:
+            for node in component:
+                G.remove_node(node)
+    return G
+
+def effectiveDiameter():
+    fileNames = getFileNames()
+    effectiveDiameters = []
+    for i in range(len(fileNames)):
+        data = readFile(fileNames[i][1])
+        G = defineGraph(data)
+        G = removeSmallComponents(G)
+        shortestPathLengths = dict(nx.all_pairs_shortest_path_length(G))
+        effDiameter = calculateEffectiveDiameter(shortestPathLengths, G.order())
+        effectiveDiameters.append(effDiameter)
+        G.clear()
+
+
+    plt.plot(effectiveDiameters)
+    plt.xlabel('Number of days passed since 2019, January 30th')
+    plt.ylabel('Effective Diameter')
+    pylab.title('Shrinking effective diameter')
+    plt.tight_layout()
+    plt.show()
+
+
+def get_val(lst, cn):
+    if lst[-1] < cn:
+        return "whatever"
+    return bisect_left(lst, cn, hi=len(lst) - 1)
+
+def calculateEffectiveDiameter(shortestPathLengths, size):
+    nodes = []
+    for i in shortestPathLengths:
+        nodes.append(i)
+    shortestLengths = []
+    for i in nodes:
+        for j in nodes:
+            shortestLengths.append(shortestPathLengths[i][j])
+    shortestLengths.sort()
+    #g(x) = g(h) + (g(h + 1) − g(h))(x − h).
+    three = get_val(shortestLengths, 3) / len(shortestLengths)
+    four = get_val(shortestLengths,4)/len(shortestLengths)
+    five = get_val(shortestLengths,5)/len(shortestLengths)
+    effDiameter = 3+(0.9-three)/(four-three)
+    print(effDiameter)
+    return effDiameter
+
+
 
 def attackingHighDegrees():
     fileNames = getFileNames()
