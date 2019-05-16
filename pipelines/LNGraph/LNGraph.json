@@ -23,6 +23,14 @@
         {
             "is_clone": "no",
             "kernel_type": "py3-env",
+            "name": "CentralityAnalysis",
+            "path": "feri_sandbox/CentralityAnalysis.ipynb",
+            "pipeline_status": "on",
+            "type": "Experiment"
+        },
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
             "name": "FirstLook",
             "path": "feri_sandbox/FirstLook.ipynb",
             "pipeline_status": "off",
@@ -31,8 +39,8 @@
         {
             "is_clone": "no",
             "kernel_type": "py3-env",
-            "name": "CentralityAnalysis",
-            "path": "feri_sandbox/CentralityAnalysis.ipynb",
+            "name": "NodeAttachments",
+            "path": "feri_sandbox/NodeAttachments.ipynb",
             "pipeline_status": "on",
             "type": "Experiment"
         }

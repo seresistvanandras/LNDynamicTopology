@@ -121,21 +121,23 @@ def show_corr_results(results, cent):
     plt.legend()
     plt.show()
     
-### Link prediction ###
+### node attachments ###
 
 def calc_centralities(G):
     print("Calculate centralities STARTED")
     degree = dict(nx.degree(G))
     w_degree = dict(G.degree(weight="capacity"))
-    betw = nx.betweenness_centrality(G)
+    betw = nx.betweenness_centrality(G, weight=None)
+    betw_cap = nx.betweenness_centrality(G, weight="rec_cap")
     pr = nx.pagerank(G, weight="capacity")
     betw_rank = dict(zip(betw.keys(),st.rankdata(-np.array(list(betw.values())))))
+    betw_cap_rank = dict(zip(betw_cap.keys(),st.rankdata(-np.array(list(betw_cap.values())))))
     degree_rank = dict(zip(degree.keys(),st.rankdata(-np.array(list(degree.values())))))
     w_degree_rank = dict(zip(w_degree.keys(),st.rankdata(-np.array(list(w_degree.values())))))
     pr_rank = dict(zip(pr.keys(),st.rankdata(-np.array(list(pr.values())))))
     print("Calculate centralities FINISHED")
-    scores = {"deg":degree, "wdeg":w_degree, "betw": betw, "pr":pr}
-    ranks = {"deg":degree_rank, "wdeg":w_degree_rank, "betw": betw_rank, "pr":pr_rank}
+    scores = {"deg":degree, "wdeg":w_degree, "betw": betw, "betw_cap":betw_cap "pr":pr}
+    ranks = {"deg":degree_rank, "wdeg":w_degree_rank, "betw": betw_rank, "betw_cap":betw_cap_rank, "pr":pr_rank}
     return scores, ranks
 
 def analyse_last_snapshot(last_snap_file, edge_keys):
@@ -145,7 +147,8 @@ def analyse_last_snapshot(last_snap_file, edge_keys):
     N = set(init_nodes["pub_key"])
     E = init_edges[["node1_pub","node2_pub","channel_id","capacity"]].drop_duplicates()
     E = E.groupby(["node1_pub","node2_pub"])["capacity"].sum().reset_index()
-    G = nx.from_pandas_dataframe(E, source="node1_pub", target="node2_pub", edge_attr="capacity", create_using=nx.Graph())
+    E["rec_cap"] = 1.0 / E["capacity"]
+    G = nx.from_pandas_dataframe(E, source="node1_pub", target="node2_pub", edge_attr=["capacity","rec_cap"], create_using=nx.Graph())
     print(G.number_of_nodes(), G.number_of_edges())
     scores, ranks = calc_centralities(G)
     return N, E, scores, ranks, last_time
@@ -164,8 +167,8 @@ def get_new_node_attachements(edges, known_nodes, node_ranks):
         else:
             homophily_edges.append((n1,n2))
             continue
-        new_node_records.append((t, new, old, node_ranks["betw"][old], node_ranks["deg"][old], node_ranks["pr"][old], node_ranks["wdeg"][old]))
-    attachments_df = pd.DataFrame(new_node_records, columns=["time","new_node","old_node","betw_rank","degree_rank","pr_rank", "w_degree_rank"])
+        new_node_records.append((t, new, old, node_ranks["betw"][old], node_ranks["betw_cap"][old], node_ranks["deg"][old], node_ranks["pr"][old], node_ranks["wdeg"][old]))
+    attachments_df = pd.DataFrame(new_node_records, columns=["time", "new_node", "old_node", "betw_rank", "betw_cap_rank", "degree_rank", "pr_rank", "w_degree_rank"])
     return attachments_df, homophily_edges
 
 def observe_node_attachements_over_time(files, first_index=1, window=7, edge_keys=["node1_pub","node2_pub","last_update","capacity","channel_id"]):
@@ -208,3 +211,18 @@ def corr_mx(df, method="spearman"):
                 corr[i,j] = st.spearmanr(arr[:,i],arr[:,j])[0]
             corr[j,i] = corr[i,j]
     return pd.DataFrame(corr, columns=df.columns)
+
+def pop_corr_with_centralities(df, cent_scores, method="spearman", cent_keys=["betw","betw_cap","wdeg"]):
+    node_pubs = list(df.index)
+    time_series = dict((cent,[]) for cent in cent_keys)
+    for i in range(len(cent_scores)):
+        popvals = list(pop_df[i])
+        for cent in cent_keys:
+            centvals = [cent_scores[i][cent].get(n,0.0) for n in node_pubs]
+            if method == "wkendall":
+                time_series[cent].append(st.weightedtau(popvals, centvals)[0])
+            elif method == "kendall":
+                time_series[cent].append(st.kendalltau(popvals, centvals)[0])
+            else:
+                time_series[cent].append(st.spearmanr(popvals, centvals)[0])
+    return time_series
