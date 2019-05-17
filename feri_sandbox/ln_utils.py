@@ -101,10 +101,13 @@ def calc_corr(df, cent, corr_type="pearson"):
     else:
         return st.pearsonr(df[cent + "_0"], df[cent + "_1"])[0]
     
-def get_corr_sequence(stats, corr_type):
+def get_corr_sequence(stats, corr_type, adjacent=True):
     res = {"deg":[],"wdeg":[],"pr":[],"betw":[],"harm":[]}
     for idx in range(1,len(stats)):
-        df1 = stats[idx-1]
+        if adjacent:
+            df1 = stats[idx-1]
+        else:
+            df1 = stats[0]
         df2 = stats[idx]
         merged_df = df1.merge(df2, on="index", suffixes=("_0","_1"))
         merged_df = merged_df.fillna(0.0)
