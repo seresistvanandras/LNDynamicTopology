@@ -17,15 +17,18 @@
             "kernel_type": "py3-env",
             "name": "CapacityAnalysis",
             "path": "feri_sandbox/CapacityAnalysis.ipynb",
-            "pipeline_status": "on",
+            "pipeline_status": "off",
             "type": "Experiment"
         },
         {
+            "dependencies": [
+                "LNDataLoader"
+            ],
             "is_clone": "no",
             "kernel_type": "py3-env",
             "name": "CentralityAnalysis",
             "path": "feri_sandbox/CentralityAnalysis.ipynb",
-            "pipeline_status": "on",
+            "pipeline_status": "off",
             "type": "Experiment"
         },
         {
@@ -39,15 +42,31 @@
         {
             "is_clone": "no",
             "kernel_type": "py3-env",
+            "name": "LNDataLoader",
+            "path": "feri_sandbox/LNDataLoader.ipynb",
+            "pipeline_status": "off",
+            "type": "Data"
+        },
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
             "name": "NodeAttachments",
             "path": "feri_sandbox/NodeAttachments.ipynb",
-            "pipeline_status": "on",
+            "pipeline_status": "off",
             "type": "Experiment"
         }
     ],
     "parameter_notebooks": [],
     "py_scripts": [],
     "reports": [
+        {
+            "date": "2019-05-17",
+            "id": "node_attachements_2019-05-17",
+            "name": "node_attachements",
+            "note": "Node attachments show very interesting behaviors. The centrality ranks of nodes can increase or decrease significantly over 8 weeks. Week from week changes are only minor. It is worth to compare node centrality scores to the first week (TODO LATER).",
+            "type": "local",
+            "user": "fberes"
+        },
         {
             "date": "2019-05-03",
             "id": "temp_ln_analysis_with_capacities_2019-05-03",

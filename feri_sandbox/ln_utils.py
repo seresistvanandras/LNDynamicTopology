@@ -136,7 +136,7 @@ def calc_centralities(G):
     w_degree_rank = dict(zip(w_degree.keys(),st.rankdata(-np.array(list(w_degree.values())))))
     pr_rank = dict(zip(pr.keys(),st.rankdata(-np.array(list(pr.values())))))
     print("Calculate centralities FINISHED")
-    scores = {"deg":degree, "wdeg":w_degree, "betw": betw, "betw_cap":betw_cap "pr":pr}
+    scores = {"deg":degree, "wdeg":w_degree, "betw": betw, "betw_cap":betw_cap, "pr":pr}
     ranks = {"deg":degree_rank, "wdeg":w_degree_rank, "betw": betw_rank, "betw_cap":betw_cap_rank, "pr":pr_rank}
     return scores, ranks
 
@@ -212,8 +212,8 @@ def corr_mx(df, method="spearman"):
             corr[j,i] = corr[i,j]
     return pd.DataFrame(corr, columns=df.columns)
 
-def pop_corr_with_centralities(df, cent_scores, method="spearman", cent_keys=["betw","betw_cap","wdeg"]):
-    node_pubs = list(df.index)
+def pop_corr_with_centralities(pop_df, cent_scores, method="spearman", cent_keys=["betw","betw_cap","wdeg"]):
+    node_pubs = list(pop_df.index)
     time_series = dict((cent,[]) for cent in cent_keys)
     for i in range(len(cent_scores)):
         popvals = list(pop_df[i])
