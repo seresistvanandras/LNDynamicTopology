@@ -5,6 +5,8 @@ import networkx as nx
 import scipy.stats as st
 import matplotlib.pyplot as plt
 
+### preprocessing ###
+
 def load_temp_data(json_files, node_keys=["pub_key","last_update"], edge_keys=["node1_pub","node2_pub","last_update","capacity"]):
     """Load LN graph json files from several snapshots"""
     node_info, edge_info = [], []
@@ -40,53 +42,68 @@ def load_temp_data(json_files, node_keys=["pub_key","last_update"], edge_keys=["
     edges_no_loops = edges[edges["node1_pub"] != edges["node2_pub"]]
     return pd.concat(node_info), edges_no_loops
 
+def generate_directed_graph(edges, policy_keys=['disabled', 'fee_base_msat', 'fee_rate_milli_msat', 'min_htlc']):
+    directed_edges = []
+    for idx, row in edges.iterrows():
+        e1 = [row[x] for x in ["node1_pub","node2_pub","last_update","channel_id","capacity"]]
+        e2 = [row[x] for x in ["node2_pub","node1_pub","last_update","channel_id","capacity"]]
+        if row["node2_policy"] == None:
+            e1 += [None for x in policy_keys]
+        else:
+            e1 += [row["node2_policy"][x] for x in policy_keys]
+        if row["node1_policy"] == None:
+            e2 += [None for x in policy_keys]
+        else:
+            e2 += [row["node1_policy"][x] for x in policy_keys]
+        directed_edges += [e1, e2]
+    cols = ["src","trg","last_update","channel_id","capacity"] + policy_keys
+    directed_edges_df = pd.DataFrame(directed_edges, columns=cols)
+    return directed_edges_df
+
 ### network centrality analysis ###
 
-def get_snapshots(edges_df, min_time, max_time, with_data=False, time_window=86400):
+def get_snapshots(edges_df, min_time, max_time, time_window, weight_cols=None):
     """Split the LN network edges into snapshots based on the provided time window"""
-    snapshots, current_snapshot = [], []
-    snapshot_start, idx = min_time, 0
-    for src, trg, time, cap in list(zip(edges_df["node1_pub"],edges_df["node2_pub"],edges_df["last_update"], edges_df["capacity"])):
-        if time > snapshot_start + time_window:
-            snapshots.append(current_snapshot)
-            print(idx, len(current_snapshot))
-            current_snapshot = []
-            snapshot_start += time_window
-            idx += 1
-            if snapshot_start > max_time:
-                break
-        if with_data:
-            current_snapshot.append((src,trg,{'capacity':cap,'last_update':time}))
+    snapshots = []
+    L = (max_time-min_time) // time_window + 1
+    for i in range(1,L+1):
+        snap_edges = edges_df[edges_df["last_update"] <= min_time+i*time_window]
+        # drop channels without capacity (if any exists)
+        snap_edges = snap_edges[snap_edges["capacity"]>0]
+        if weight_cols != None and "capacity" in weight_cols:
+            # reciprocal capacity for betweeness centrality computation
+            snap_edges["rec_capacity"] = 1.0 / snap_edges["capacity"]
+            cols = weight_cols.copy()
+            cols.append("rec_capacity")
         else:
-            current_snapshot.append((src,trg))
+            cols = weight_cols
+        snap_edges = snap_edges.drop_duplicates(["src","trg"],  keep='last')
+        print(i, len(snap_edges))
+        snapshots.append(nx.from_pandas_dataframe(snap_edges, source="src", target="trg", edge_attr=cols, create_using=nx.DiGraph()))
     return snapshots
 
-def get_snapshot_properties(snapshots, window=1, is_directed=False, weight=None):
+def get_snapshot_properties(snapshots, weight):
     """Calculate network properties for each snapshot"""
     stats = []
-    for idx in range(len(snapshots)):
-        from_idx = max(0,idx-window)
-        window_edges = []
-        for j in range(from_idx, idx+1):
-            window_edges += snapshots[j]
-        if is_directed:
-            G = nx.DiGraph()
-        else:
-            G = nx.Graph()
-        G.add_edges_from(window_edges)
+    for G in snapshots:
         print(G.number_of_edges(), G.number_of_nodes())
-        stats.append(calculate_centralities(G,weight))
+        stats.append(calculate_centralities(G, weight))
     return stats
             
-def calculate_centralities(G,weight=None):
+def calculate_centralities(G, weight=None):
     """Calculate centrality measures"""
     res = {
-        "deg": dict(G.degree(weight=None)),
-        "wdeg": dict(G.degree(weight=weight)),
+        "deg": dict(G.degree(weight=weight)),
+        "in_deg": dict(G.in_degree(weight=weight)),
+        "out_deg": dict(G.out_degree(weight=weight)),
         "pr": nx.pagerank(G, weight=weight),
-        "betw": nx.betweenness_centrality(G),#, weight=weight, k=None),
-        "harm": nx.harmonic_centrality(G)
     }
+    if weight == "capacity":
+        res["betw"] = nx.betweenness_centrality(G, weight="rec_capacity", k=None)
+    else:
+        res["betw"] = nx.betweenness_centrality(G, weight=weight, k=None)
+    #if weight == None:
+    #    res["harm"] = nx.harmonic_centrality(G)
     print("Centralities COMPUTED")
     return pd.DataFrame(res).reset_index()
 
@@ -101,8 +118,8 @@ def calc_corr(df, cent, corr_type="pearson"):
     else:
         return st.pearsonr(df[cent + "_0"], df[cent + "_1"])[0]
     
-def get_corr_sequence(stats, corr_type, adjacent=True):
-    res = {"deg":[],"wdeg":[],"pr":[],"betw":[],"harm":[]}
+def get_corr_sequence(stats, corr_type, centralities=["deg","in_deg","out_deg","pr","betw"], adjacent=True):
+    res = dict([(c,[]) for c in centralities])
     for idx in range(1,len(stats)):
         if adjacent:
             df1 = stats[idx-1]
@@ -111,18 +128,23 @@ def get_corr_sequence(stats, corr_type, adjacent=True):
         df2 = stats[idx]
         merged_df = df1.merge(df2, on="index", suffixes=("_0","_1"))
         merged_df = merged_df.fillna(0.0)
-        for cent in  ["deg","wdeg","pr","betw","harm"]:
+        for cent in  centralities:
             res[cent].append(calc_corr(merged_df, cent, corr_type))
     return res
-
-def show_corr_results(results, cent):
-    plt.Figure(figsize=(10,10))
-    plt.title(cent)
-    for corr in ["pearson","spearman","kendall","w_kendall"]:
-        vals = results[corr][cent]
-        plt.plot(range(len(vals)), vals, label=corr)
-    plt.legend()
-    plt.show()
+    
+def show_corr_results(stats, adjacent, weight_cols, centralities=["deg","in_deg","out_deg","pr","betw","harm"], corr_methods=["pearson","spearman","kendall","w_kendall"]):
+    results = {}
+    for w in weight_cols:
+        results[w] = dict([(corr, get_corr_sequence(stats[w], corr, adjacent=adjacent, centralities=centralities)) for corr in corr_methods])
+    for cent in  centralities:
+        f, axis = plt.subplots(1, len(weight_cols), sharey=True, figsize=(20,5))
+        for i, w in enumerate(weight_cols):
+            for corr in corr_methods:
+                vals = results[w][corr][cent]
+                axis[i].set_title("%s: weight=%s" % (cent, w))
+                axis[i].plot(range(1,len(vals)+1), vals, label=corr)
+                axis[i].legend()
+    return results
     
 ### node attachments ###
 

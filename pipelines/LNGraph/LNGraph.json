@@ -1,5 +1,9 @@
 {
     "config_path": "pipelines/LNGraph/LNGraph.json",
+    "default_config": {
+        "data_dir": "/mnt/idms/fberes/data/bitcoin_ln_research",
+        "weight": null
+    },
     "description": "Experimenting with Bitcoin LN network over time.",
     "id": "0",
     "imports": [
@@ -22,12 +26,20 @@
         },
         {
             "dependencies": [
-                "LNDataLoader"
+                "CentralityCalculator"
             ],
             "is_clone": "no",
             "kernel_type": "py3-env",
             "name": "CentralityAnalysis",
             "path": "feri_sandbox/CentralityAnalysis.ipynb",
+            "pipeline_status": "on",
+            "type": "Centrality"
+        },
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "CentralityCalculator",
+            "path": "feri_sandbox/CentralityCalculator.ipynb",
             "pipeline_status": "off",
             "type": "Experiment"
         },
@@ -36,6 +48,14 @@
             "kernel_type": "py3-env",
             "name": "FirstLook",
             "path": "feri_sandbox/FirstLook.ipynb",
+            "pipeline_status": "off",
+            "type": "Data"
+        },
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "GetDirectedGraph",
+            "path": "feri_sandbox/GetDirectedGraph.ipynb",
             "pipeline_status": "off",
             "type": "Data"
         },
@@ -56,7 +76,13 @@
             "type": "Experiment"
         }
     ],
-    "parameter_notebooks": [],
+    "parameter_notebooks": [
+        {
+            "kernel_type": "py3-env",
+            "name": "LNParams",
+            "path": "pipelines/LNGraph/LNParams.ipynb"
+        }
+    ],
     "py_scripts": [],
     "reports": [
         {
