@@ -2,9 +2,6 @@
     "config_path": "pipelines/LNGraph/LNGraph.json",
     "default_config": {
         "data_dir": "/mnt/idms/fberes/data/bitcoin_ln_research",
-        "max_time": 1553947199,
-        "min_time": 1548979201,
-        "time_window": 604800,
         "weight": null
     },
     "description": "Experimenting with Bitcoin LN network over time.",

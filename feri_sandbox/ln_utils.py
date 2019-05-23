@@ -11,43 +11,29 @@ import seaborn as sns
 def load_temp_data(json_files, node_keys=["pub_key","last_update"], edge_keys=["node1_pub","node2_pub","last_update","capacity"]):
     """Load LN graph json files from several snapshots"""
     node_info, edge_info = [], []
-    last_node_update, last_edge_update = 0, 0
-    first = True
-    for json_f in json_files:
+    for idx, json_f in enumerate(json_files):
         with open(json_f) as f:
             tmp_json = json.load(f)
         new_nodes = pd.DataFrame(tmp_json["nodes"])[node_keys]
         new_edges = pd.DataFrame(tmp_json["edges"])[edge_keys]
-        #print(len(new_edges))
-        FILTER_TIME = 2524611600 #Human time (GMT): Saturday, January 1, 2050 1:00:00 AM
-        new_edges = new_edges[new_edges["last_update"] < FILTER_TIME]
-        #print(len(new_edges))
-        new_nodes = new_nodes[new_nodes["last_update"] > last_node_update]
-        new_edges = new_edges[new_edges["last_update"] > last_edge_update]
+        new_nodes["snapshot_id"] = idx
+        new_edges["snapshot_id"] = idx
         print(json_f, len(new_nodes), len(new_edges))
-        if len(new_nodes) > 0:
-            node_info.append(new_nodes)
-            last_node_update = new_nodes["last_update"].max()
-        else:
-            print("NO NEW NODES!!!")
-        if len(new_edges) > 0:
-            edge_info.append(new_edges)
-            last_edge_update = new_edges["last_update"].max()
-        else:
-            print("NO NEW EDGES!!!")
-        #print(last_node_update, last_edge_update)
-    #return nodes, edges
+        node_info.append(new_nodes)
+        edge_info.append(new_edges)
     edges = pd.concat(edge_info)
     edges["capacity"] = edges["capacity"].astype("int64")
     edges["last_update"] = edges["last_update"].astype("int64")
+    print("All edges:", len(edges))
     edges_no_loops = edges[edges["node1_pub"] != edges["node2_pub"]]
+    print("All edges without loops:", len(edges_no_loops))
     return pd.concat(node_info), edges_no_loops
 
 def generate_directed_graph(edges, policy_keys=['disabled', 'fee_base_msat', 'fee_rate_milli_msat', 'min_htlc']):
     directed_edges = []
     for idx, row in edges.iterrows():
-        e1 = [row[x] for x in ["node1_pub","node2_pub","last_update","channel_id","capacity"]]
-        e2 = [row[x] for x in ["node2_pub","node1_pub","last_update","channel_id","capacity"]]
+        e1 = [row[x] for x in ["snapshot_id","node1_pub","node2_pub","last_update","channel_id","capacity"]]
+        e2 = [row[x] for x in ["snapshot_id","node2_pub","node1_pub","last_update","channel_id","capacity"]]
         if row["node2_policy"] == None:
             e1 += [None for x in policy_keys]
         else:
@@ -57,7 +43,7 @@ def generate_directed_graph(edges, policy_keys=['disabled', 'fee_base_msat', 'fe
         else:
             e2 += [row["node1_policy"][x] for x in policy_keys]
         directed_edges += [e1, e2]
-    cols = ["src","trg","last_update","channel_id","capacity"] + policy_keys
+    cols = ["snapshot_id","src","trg","last_update","channel_id","capacity"] + policy_keys
     directed_edges_df = pd.DataFrame(directed_edges, columns=cols)
     return directed_edges_df
 
@@ -73,24 +59,24 @@ def load_centrality_scores(stat_dir, snapshot_ids, weight_cols, drop_cols=[]):
 
 ### network centrality analysis ###
 
-def get_snapshots(edges_df, min_time, max_time, time_window, weight_cols=None):
+def get_snapshots(edges_df, weight_cols=None):
     """Split the LN network edges into snapshots based on the provided time window"""
+    cols = None if weight_cols==None else weight_cols.copy()
     snapshot_graphs = []
     snapshot_edges = []
-    L = (max_time-min_time) // time_window + 1
-    for i in range(1,L+1):
-        snap_edges = edges_df[edges_df["last_update"] < min_time+i*time_window]
+    snapshot_ids = sorted(edges_df["snapshot_id"].unique())
+    for i in snapshot_ids:
+        snap_edges = edges_df[edges_df["snapshot_id"] == i]
         # drop channels without capacity (if any exists)
         snap_edges = snap_edges[snap_edges["capacity"]>0]
-        snapshot_edges.append(snap_edges[snap_edges["last_update"] >= min_time+(i-1)*time_window])
+        snapshot_edges.append(snap_edges)
         if weight_cols != None and "capacity" in weight_cols:
             # reciprocal capacity for betweeness centrality computation
             snap_edges["rec_capacity"] = 1.0 / snap_edges["capacity"]
-            cols = weight_cols.copy()
             cols.append("rec_capacity")
-        else:
-            cols = weight_cols
-        snap_edges = snap_edges.drop_duplicates(["src","trg"],  keep='last')
+        if weight_cols != None and "num_channels" in weight_cols:
+            snap_edges["rec_num_channels"] = 1.0 / snap_edges["num_channels"]
+            cols.append("rec_num_channels")
         print(i, len(snap_edges))
         snapshot_graphs.append(nx.from_pandas_dataframe(snap_edges, source="src", target="trg", edge_attr=cols, create_using=nx.DiGraph()))
     return snapshot_graphs, snapshot_edges
@@ -111,10 +97,14 @@ def calculate_centralities(G, weight=None):
         "out_deg": dict(G.out_degree(weight=weight)),
         "pr": nx.pagerank(G, weight=weight),
     }
+    """
     if weight == "capacity":
         res["betw"] = nx.betweenness_centrality(G, weight="rec_capacity", k=None)
+    elif weight == "num_channels":
+        res["betw"] = nx.betweenness_centrality(G, weight="rec_num_channels", k=None)
     else:
         res["betw"] = nx.betweenness_centrality(G, weight=weight, k=None)
+    """
     #if weight == None:
     #    res["harm"] = nx.harmonic_centrality(G)
     print("Centralities COMPUTED")
