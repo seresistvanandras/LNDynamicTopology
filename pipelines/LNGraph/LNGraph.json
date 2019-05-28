@@ -2,7 +2,28 @@
     "config_path": "pipelines/LNGraph/LNGraph.json",
     "default_config": {
         "data_dir": "/mnt/idms/fberes/data/bitcoin_ln_research",
-        "weight": null
+        "experiment_id": "trial",
+        "num_transactions": 1000,
+        "snapshot_id": 0,
+        "snapshot_ids": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+        ],
+        "weight": null,
+        "weight_cols": [
+            null,
+            "num_channels",
+            "capacity",
+            "fee_base_msat",
+            "fee_rate_milli_msat"
+        ]
     },
     "description": "Experimenting with Bitcoin LN network over time.",
     "id": "0",
@@ -12,6 +33,12 @@
             "name": "ln_utils",
             "path": "feri_sandbox/ln_utils.py",
             "type": "Utils"
+        },
+        {
+            "kernel_type": "py3-env",
+            "name": "transaction_simulator",
+            "path": "feri_sandbox/transaction_simulator.py",
+            "type": "Simulator"
         }
     ],
     "name": "LNGraph",
@@ -32,7 +59,7 @@
             "kernel_type": "py3-env",
             "name": "CentralityAnalysis",
             "path": "feri_sandbox/CentralityAnalysis.ipynb",
-            "pipeline_status": "on",
+            "pipeline_status": "off",
             "type": "Results"
         },
         {
@@ -71,6 +98,14 @@
             "type": "Data"
         },
         {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "LabelScraping",
+            "path": "feri_sandbox/LabelScraping.ipynb",
+            "pipeline_status": "off",
+            "type": "Data"
+        },
+        {
             "dependencies": [
                 "CentralityCalculator",
                 "GetDirectedGraph"
@@ -79,7 +114,15 @@
             "kernel_type": "py3-env",
             "name": "NodeAttachments",
             "path": "feri_sandbox/NodeAttachments.ipynb",
-            "pipeline_status": "on",
+            "pipeline_status": "off",
+            "type": "Experiment"
+        },
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "TransactionSimulator",
+            "path": "feri_sandbox/TransactionSimulator.ipynb",
+            "pipeline_status": "off",
             "type": "Experiment"
         }
     ],
@@ -92,6 +135,14 @@
     ],
     "py_scripts": [],
     "reports": [
+        {
+            "date": "2019-05-24",
+            "id": "experiments_with_channel_deletion_2019-05-24",
+            "name": "experiments_with_channel_deletion",
+            "note": "Node attachment and centrality correlation experiments. Here I take into account deleted channels.",
+            "type": "local",
+            "user": "fberes"
+        },
         {
             "date": "2019-05-17",
             "id": "node_attachements_2019-05-17",

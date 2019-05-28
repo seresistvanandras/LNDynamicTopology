@@ -97,14 +97,12 @@ def calculate_centralities(G, weight=None):
         "out_deg": dict(G.out_degree(weight=weight)),
         "pr": nx.pagerank(G, weight=weight),
     }
-    """
     if weight == "capacity":
         res["betw"] = nx.betweenness_centrality(G, weight="rec_capacity", k=None)
     elif weight == "num_channels":
         res["betw"] = nx.betweenness_centrality(G, weight="rec_num_channels", k=None)
     else:
         res["betw"] = nx.betweenness_centrality(G, weight=weight, k=None)
-    """
     #if weight == None:
     #    res["harm"] = nx.harmonic_centrality(G)
     print("Centralities COMPUTED")
