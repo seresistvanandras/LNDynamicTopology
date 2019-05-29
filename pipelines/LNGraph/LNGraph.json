@@ -120,6 +120,14 @@
         {
             "is_clone": "no",
             "kernel_type": "py3-env",
+            "name": "SimulationResults",
+            "path": "feri_sandbox/SimulationResults.ipynb",
+            "pipeline_status": "off",
+            "type": "Results"
+        },
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
             "name": "TransactionSimulator",
             "path": "feri_sandbox/TransactionSimulator.ipynb",
             "pipeline_status": "off",
@@ -133,7 +141,16 @@
             "path": "pipelines/LNGraph/LNParams.ipynb"
         }
     ],
-    "py_scripts": [],
+    "py_scripts": [
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "RunSimulator",
+            "path": "feri_sandbox/run_simulator.py",
+            "pipeline_status": "off",
+            "type": "Simulator"
+        }
+    ],
     "reports": [
         {
             "date": "2019-05-24",

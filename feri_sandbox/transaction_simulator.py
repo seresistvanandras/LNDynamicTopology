@@ -1,6 +1,9 @@
 import pandas as pd
 import numpy as np
 import networkx as nx
+import os
+
+### transaction simulator ###
 
 def get_src_proba(df, alpha):
     df["src_proba"] = alpha / (alpha + df["degree"])
@@ -65,7 +68,6 @@ def process_path(path, amount_in_satoshi, cost_dict):
         routers.append(n2)
     return base_sum + amount_in_satoshi * rate_sum / 10**6, routers
 
-# TODO: parallelize!!!
 def get_shortest_paths_with_node_removals(G, hashed_transactions, edges, cost_prefix="", weight=None):
     bin_sizes = []
     alternative_paths = []
@@ -83,8 +85,8 @@ def calculate_node_influence(shortest_paths, alternative_paths):
     a_paths = alternative_paths.copy().drop("path", axis=1)
     s_paths["original_cost"] = 1.0 / s_paths["original_cost"]
     a_paths["cost"] = 1.0 / a_paths["cost"]
-    s_paths["length"] = 1.0 / s_paths["length"]
-    a_paths["length"] = 1.0 / a_paths["length"]
+    s_paths["length"] = s_paths["length"].apply(lambda x: 1.0 if x==0.0 else 1.0/x)
+    a_paths["length"] = a_paths["length"].apply(lambda x: 1.0 if x==0.0 else 1.0/x)
     routing_diff = a_paths.merge(s_paths, on="transaction_id", how="left", suffixes=("","_original"))
     routing_diff = routing_diff.fillna(0.0)
     harmonic_sums = routing_diff.drop("transaction_id", axis=1).groupby(by="removed_node").aggregate({"cost":"sum","original_cost":"sum"})
@@ -114,3 +116,35 @@ class TransactionSimulator():
         print("Length distribution of optimal paths:")
         print(alternative_paths["length"].value_counts())
         return shortest_paths, alternative_paths
+    
+### process results ###
+    
+def get_experiment_files(experiment_id, snapshots, simulation_dir):
+    files = {}
+    for snap_id in snapshots:
+        files[snap_id] = []
+        for f in os.listdir("%s/%i" % (simulation_dir, snap_id)):
+            if experiment_id in f:
+                files[snap_id].append("%s/%i/%s" % (simulation_dir, snap_id, f))
+    return files
+
+def aggregate_samples(experiment_files, snapshot_id):
+    samples = []
+    for i, f in enumerate(experiment_files[snapshot_id]):
+        df = pd.read_csv(f)
+        df = df.replace([np.inf, -np.inf], np.nan)
+        df = df[~df["cost_diff"].isnull()]
+        df["sample_id"] = i
+        samples.append(df)
+    df = pd.concat(samples, sort=True)
+    mean_costs = df.groupby("removed_node").mean().drop("sample_id", axis=1)
+    return merge_with_other_metrics(mean_costs.sort_values("cost_diff", ascending=False), snapshot_id), df
+
+def merge_with_other_metrics(mean_costs, snapshot_id, weight=None):
+    cent = pd.read_csv("/mnt/idms/fberes/data/bitcoin_ln_research/centrality_scores/scores_%s_%i.csv" % (weight, snapshot_id))
+    most_pop = pd.read_csv("/mnt/idms/fberes/data/bitcoin_ln_research/most_pop_nodes.csv")
+    all_info = mean_costs.reset_index().merge(cent[["index","betw","deg","pr"]], left_on="removed_node", right_on="index", how="left").drop("index", axis=1)
+    all_info = all_info.merge(most_pop[["index",str(snapshot_id)]], left_on="removed_node", right_on="index", how="left").drop("index", axis=1)
+    all_info = all_info.rename({str(snapshot_id):"pop"}, axis=1)
+    all_info = all_info.fillna(0)
+    return all_info
