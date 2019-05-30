@@ -1,6 +1,7 @@
 {
     "config_path": "pipelines/LNGraph/LNGraph.json",
     "default_config": {
+        "amount_sat": 100000,
         "data_dir": "/mnt/idms/fberes/data/bitcoin_ln_research",
         "experiment_id": "trial",
         "num_transactions": 1000,

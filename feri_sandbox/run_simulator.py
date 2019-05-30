@@ -9,6 +9,7 @@ ph = ParamHelper('..', 'LNGraph', sys.argv)
 
 experiment_id = ph.get("experiment_id")
 snapshot_id = ph.get("snapshot_id")
+amount_sat = ph.get("amount_sat")
 num_transactions = ph.get("num_transactions")
 
 data_dir = ph.get("data_dir")
@@ -29,8 +30,8 @@ edges = snapshots[snapshots["snapshot_id"]==snapshot_id]
 
 # 3. Simulation
 
-simulator = ts.TransactionSimulator(edges, providers, num_transactions)
-shortest_paths, alternative_paths = simulator.simulate()
+simulator = ts.TransactionSimulator(edges, providers, amount_sat, num_transactions)
+shortest_paths, alternative_paths = simulator.simulate(weight="total_fee")
 harmonic_sums, routing_differences = ts.calculate_node_influence(shortest_paths, alternative_paths)
 harmonic_sums.reset_index().to_csv(output_file, index=False)
 

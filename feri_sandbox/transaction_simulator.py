@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import networkx as nx
+from tqdm import tqdm
 import os
 
 ### transaction simulator ###
@@ -13,7 +14,8 @@ def get_trg_proba(df, eps, providers):
     df["trg_proba"] = eps + (1.0 - eps) * df.apply(lambda x: x["degree"] if x["pub_key"] in providers else 0.0, axis=1)
     df["trg_proba"] = df["trg_proba"] / df["trg_proba"].sum()
     
-def init_node_params(G, providers, eps, alpha=None):
+def init_node_params(edges, providers, eps, alpha=None):
+    G = nx.from_pandas_dataframe(edges, source="src", target="trg", create_using=nx.DiGraph())
     node_variables = pd.DataFrame(list(G.degree()), columns=["pub_key","degree"])
     if alpha == None:
         alpha = node_variables["degree"].mean()
@@ -21,27 +23,24 @@ def init_node_params(G, providers, eps, alpha=None):
     get_trg_proba(node_variables, eps, providers)
     return node_variables
     
-def sample_transactions(node_variables, K=1000):
+def sample_transactions(node_variables, amount_in_satochi, K=1000):
     nodes = list(node_variables["pub_key"])
     src_selected = np.random.choice(nodes, size=K, replace=True, p=list(node_variables["src_proba"]))
     trg_selected = np.random.choice(nodes, size=K, replace=True, p=list(node_variables["trg_proba"]))
     transactions = pd.DataFrame(list(zip(src_selected, trg_selected)), columns=["source","target"])
-    transactions["amount"] = 1
+    transactions["amount"] = amount_in_satochi
     transactions["transaction_id"] = transactions.index
     transactions = transactions[transactions["source"] != transactions["target"]]
     print("Number of loop transactions (removed):", K-len(transactions))
     return transactions[["transaction_id","source","target","amount"]]
 
-def get_shortest_paths(G, transactions, edges, hash_transactions=True, cost_prefix="", weight=None):
-    keys = list(zip(edges["src"], edges["trg"]))
-    vals = list(zip(edges["fee_base_msat"], edges["fee_rate_milli_msat"]))
-    cost_dict = dict(zip(keys,vals))
+def get_shortest_paths(G, transactions, cost_dict, hash_transactions=True, cost_prefix="", weight=None):
     shortest_paths = []
     hashed_transactions = {}
     for idx, row in transactions.iterrows():
         try:
-            p = nx.shortest_path(G, source=row["source"], target=row["target"], weight=weight)
-            cost, routers = process_path(p, row["amount"]*10**8, cost_dict)
+            p = nx.shortest_path(G, source=row["source"], target=row["target"] + "_trg", weight=weight)
+            cost, routers = process_path(p, row["amount"], cost_dict)
             if hash_transactions:
                 for router in routers:
                     if not router in hashed_transactions:
@@ -68,57 +67,71 @@ def process_path(path, amount_in_satoshi, cost_dict):
         routers.append(n2)
     return base_sum + amount_in_satoshi * rate_sum / 10**6, routers
 
-def get_shortest_paths_with_node_removals(G, hashed_transactions, edges, cost_prefix="", weight=None):
+def get_shortest_paths_with_node_removals(G, hashed_transactions, cost_dict, cost_prefix="", weight=None):
     bin_sizes = []
     alternative_paths = []
-    for node, bucket_transactions in hashed_transactions.items():
+    for node, bucket_transactions in tqdm(hashed_transactions.items(), mininterval=10):
         bin_sizes.append(len(bucket_transactions))
         H = G.copy()
         H.remove_node(node)
-        new_paths, _ = get_shortest_paths(H, bucket_transactions, edges, hash_transactions=False, cost_prefix=cost_prefix, weight=weight)
+        H.remove_node(node + "_trg") # delete node copy as well
+        new_paths, _ = get_shortest_paths(H, bucket_transactions, cost_dict, hash_transactions=False, cost_prefix=cost_prefix, weight=weight)
         new_paths["removed_node"] = node
         alternative_paths.append(new_paths)
     return pd.concat(alternative_paths), bin_sizes
 
-def calculate_node_influence(shortest_paths, alternative_paths):
-    s_paths = shortest_paths.copy().drop("path", axis=1)
-    a_paths = alternative_paths.copy().drop("path", axis=1)
-    s_paths["original_cost"] = 1.0 / s_paths["original_cost"]
-    a_paths["cost"] = 1.0 / a_paths["cost"]
-    s_paths["length"] = s_paths["length"].apply(lambda x: 1.0 if x==0.0 else 1.0/x)
-    a_paths["length"] = a_paths["length"].apply(lambda x: 1.0 if x==0.0 else 1.0/x)
-    routing_diff = a_paths.merge(s_paths, on="transaction_id", how="left", suffixes=("","_original"))
-    routing_diff = routing_diff.fillna(0.0)
-    harmonic_sums = routing_diff.drop("transaction_id", axis=1).groupby(by="removed_node").aggregate({"cost":"sum","original_cost":"sum"})
-    harmonic_sums["cost_diff"] = harmonic_sums["original_cost"] - harmonic_sums["cost"]
-    return harmonic_sums.sort_values("cost_diff", ascending=False), routing_diff
+def generate_graph_for_path_search(edges):
+    """The last edge in each path has zero cost! Only routing has transaction fees."""
+    tmp_edges = edges.copy()
+    tmp_edges["trg"] = tmp_edges["trg"].apply(lambda x: str(x) + "_trg")
+    tmp_edges["total_fee"] = 0.0
+    tmp_edges["fee_base_msat"] = 0.0
+    tmp_edges["fee_rate_milli_msat"] = 0.0
+    all_edges = pd.concat([edges, tmp_edges])
+    return nx.from_pandas_dataframe(all_edges, source="src", target="trg", edge_attr=["total_fee"], create_using=nx.DiGraph())
 
 class TransactionSimulator():
-    def __init__(self, edges, providers, k, eps=0.05, alpha=2.0):
-        self.G = nx.from_pandas_dataframe(edges, source="src", target="trg", edge_attr=["capacity","fee_base_msat","fee_rate_milli_msat"])
-        self.edges = edges
+    def __init__(self, edges, providers, amount_sat, k, eps=0.05, alpha=2.0):
+        self.edges = edges[edges["capacity"] > amount_sat]
+        print("Number of deleted directed channels:", len(edges) - len(self.edges))
+        print("Number of remaining directed channels:", len(self.edges))
+        self.edges["total_fee"] = self.edges["fee_base_msat"] + amount_sat * self.edges["fee_rate_milli_msat"] / 10**6
+        self.G = generate_graph_for_path_search(self.edges)
         self.providers = list(set(providers).intersection(set(self.G.nodes())))
-        self.node_variables = init_node_params(self.G, self.providers, eps, alpha)
-        print("Number of nodes:", self.G.number_of_nodes())
-        print("Number of edges:", self.G.number_of_edges())
+        self.node_variables = init_node_params(self.edges, self.providers, eps, alpha)
         self.transactions = sample_transactions(self.node_variables, k)
         print("%i transaction were generated." % k)
     
-    def simulate(self):
+    def simulate(self, weight=None):
+        print("Using weight='%s'" % weight)
+        keys = list(zip(self.edges["src"], self.edges["trg"]))
+        vals = list(zip(self.edges["fee_base_msat"], self.edges["fee_rate_milli_msat"]))
+        cost_dict = dict(zip(keys,vals))
         print("Transactions simulated on original graph STARTED..")
-        shortest_paths, hashed_transactions = get_shortest_paths(self.G, self.transactions, self.edges, cost_prefix="original_")
+        shortest_paths, hashed_transactions = get_shortest_paths(self.G, self.transactions, cost_dict, cost_prefix="original_", weight=weight)
         print("Transactions simulated on original graph DONE")
         print("Length distribution of optimal paths:")
         print(shortest_paths["length"].value_counts())
         print("Transactions simulated with node removals STARTED..")
-        alternative_paths, bin_sizes = get_shortest_paths_with_node_removals(self.G, hashed_transactions, self.edges)
+        alternative_paths, bin_sizes = get_shortest_paths_with_node_removals(self.G, hashed_transactions, cost_dict, weight=weight)
         print("Transactions simulated with node removals DONE")
         print("Length distribution of optimal paths:")
         print(alternative_paths["length"].value_counts())
         return shortest_paths, alternative_paths
     
 ### process results ###
-    
+
+def calculate_node_influence(shortest_paths, alternative_paths):
+    s_paths = shortest_paths.copy().drop("path", axis=1)
+    a_paths = alternative_paths.copy().drop("path", axis=1)
+    s_paths["original_cost"] = 1.0 / (1.0 + s_paths["original_cost"])
+    a_paths["cost"] = 1.0 / (1.0 + a_paths["cost"])
+    routing_diff = a_paths.merge(s_paths, on="transaction_id", how="left", suffixes=("","_original"))
+    routing_diff = routing_diff.fillna(0.0)
+    harmonic_sums = routing_diff.drop("transaction_id", axis=1).groupby(by="removed_node").aggregate({"cost":"sum","original_cost":"sum"})
+    harmonic_sums["cost_diff"] = harmonic_sums["original_cost"] - harmonic_sums["cost"]
+    return harmonic_sums.sort_values("cost_diff", ascending=False), routing_diff
+
 def get_experiment_files(experiment_id, snapshots, simulation_dir):
     files = {}
     for snap_id in snapshots:
