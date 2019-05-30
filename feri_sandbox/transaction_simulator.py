@@ -23,16 +23,16 @@ def init_node_params(edges, providers, eps, alpha=None):
     get_trg_proba(node_variables, eps, providers)
     return node_variables
     
-def sample_transactions(node_variables, amount_in_satochi, K=1000):
+def sample_transactions(node_variables, amount_in_satochi, K):
     nodes = list(node_variables["pub_key"])
     src_selected = np.random.choice(nodes, size=K, replace=True, p=list(node_variables["src_proba"]))
     trg_selected = np.random.choice(nodes, size=K, replace=True, p=list(node_variables["trg_proba"]))
     transactions = pd.DataFrame(list(zip(src_selected, trg_selected)), columns=["source","target"])
-    transactions["amount"] = amount_in_satochi
+    transactions["amount_SAT"] = amount_in_satochi
     transactions["transaction_id"] = transactions.index
     transactions = transactions[transactions["source"] != transactions["target"]]
     print("Number of loop transactions (removed):", K-len(transactions))
-    return transactions[["transaction_id","source","target","amount"]]
+    return transactions[["transaction_id","source","target","amount_SAT"]]
 
 def get_shortest_paths(G, transactions, cost_dict, hash_transactions=True, cost_prefix="", weight=None):
     shortest_paths = []
@@ -40,12 +40,17 @@ def get_shortest_paths(G, transactions, cost_dict, hash_transactions=True, cost_
     for idx, row in transactions.iterrows():
         try:
             p = nx.shortest_path(G, source=row["source"], target=row["target"] + "_trg", weight=weight)
-            cost, routers = process_path(p, row["amount"], cost_dict)
+            #c = nx.shortest_path_length(G, source=row["source"], target=row["target"] + "_trg", weight=weight)
+            cost, routers = process_path(p, row["amount_SAT"], cost_dict)
+            #if c != cost:
+            #    raise RuntimeError("%i: %s->%s: %f - %f | %s" % (row["transaction_id"], row["source"], row["target"], c, cost, p))
             if hash_transactions:
                 for router in routers:
                     if not router in hashed_transactions:
                         hashed_transactions[router] = []
                     hashed_transactions[router].append(row)
+        except RuntimeError as re:
+            raise re
         except:
             p = []
             cost = None
@@ -99,7 +104,7 @@ class TransactionSimulator():
         self.G = generate_graph_for_path_search(self.edges)
         self.providers = list(set(providers).intersection(set(self.G.nodes())))
         self.node_variables = init_node_params(self.edges, self.providers, eps, alpha)
-        self.transactions = sample_transactions(self.node_variables, k)
+        self.transactions = sample_transactions(self.node_variables, amount_sat, k)
         print("%i transaction were generated." % k)
     
     def simulate(self, weight=None):
