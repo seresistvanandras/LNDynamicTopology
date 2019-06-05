@@ -37,6 +37,12 @@
         },
         {
             "kernel_type": "py3-env",
+            "name": "scraping",
+            "path": "feri_sandbox/scraping.py",
+            "type": "SCraping"
+        },
+        {
+            "kernel_type": "py3-env",
             "name": "transaction_simulator",
             "path": "feri_sandbox/transaction_simulator.py",
             "type": "Simulator"

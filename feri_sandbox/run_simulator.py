@@ -31,7 +31,7 @@ edges = snapshots[snapshots["snapshot_id"]==snapshot_id]
 # 3. Simulation
 
 simulator = ts.TransactionSimulator(edges, providers, amount_sat, num_transactions)
-shortest_paths, alternative_paths = simulator.simulate(weight="total_fee")
+shortest_paths, alternative_paths, _ = simulator.simulate(weight="total_fee")
 harmonic_sums, routing_differences = ts.calculate_node_influence(shortest_paths, alternative_paths)
 harmonic_sums.reset_index().to_csv(output_file, index=False)
 
