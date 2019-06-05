@@ -9,11 +9,34 @@ from scipy import stats
 from matplotlib import pylab
 from collections import OrderedDict
 from bisect import bisect_left
+import numpy.random
+
 
 def main():
-    effectiveDiameter()
+    #effectiveDiameter()
     #edgeNovsNodeNo()
     #attackingHighDegrees()
+    #routingFees()
+    blockHeadersParser()
+
+def routingFees():
+    fileNames = getFileNames()
+    for i in range(1):
+        feebases = []
+        feerates = []
+        data = readFile(fileNames[i][1])
+        feePair = []
+        counter = 0
+        G = defineFeeGraph(data)
+        for i in G.edges():
+            feebases.append(int(G.get_edge_data(i[0],i[1])['feebase']))
+            feerates.append(int(G.get_edge_data(i[0],i[1])['feerate']))
+            feePair.append((int(G.get_edge_data(i[0],i[1])['feebase']),int(G.get_edge_data(i[0],i[1])['feerate'])))
+            if(10000 < feebases[-1]):
+                print(max(G.degree(i[0]),G.degree(i[1])))
+                counter = counter+1
+        print("Total", counter)
+
 
 def removeSmallComponents(G):
     for component in list(nx.connected_components(G)):
@@ -188,6 +211,18 @@ def averageShortestPathLengths():
     fig.tight_layout()
     plt.show()
 
+#graph where capacities are tx fees
+def defineFeeGraph(data) -> object:
+    G = nx.Graph()
+    for x in range(len(data)):
+        try:
+            G.add_edge(data[x]['node2_pub'], data[x]['node1_pub'], feebase=data[x]['node1_policy']['fee_base_msat'])
+            G.add_edge(data[x]['node2_pub'], data[x]['node1_pub'], feerate=data[x]['node1_policy']['fee_rate_milli_msat'])
+        except:
+            G.add_edge(data[x]['node2_pub'], data[x]['node1_pub'], feebase=data[x]['node2_policy']['fee_base_msat'])
+            G.add_edge(data[x]['node2_pub'], data[x]['node1_pub'], feerate=data[x]['node2_policy']['fee_rate_milli_msat'])
+    return G
+
 def defineGraph(data) -> object:
     G = nx.Graph()
     for x in range(len(data)):
@@ -213,6 +248,22 @@ def getFileNames():
         Files[timestamp] = i
     sortedFiles = sorted(Files.items(), key=lambda t: t[0])
     return sortedFiles
+
+def blockHeadersParser():
+    counter = 0
+    allHeaders = []
+    timestamps = []
+    f = open('blockheadersraw.json','r')
+    for line in f:
+        counter += 1
+        timestamps.append(json.loads(line)['timestamp'])
+    timestamps.sort()
+    differences = []
+    for i in range(len(timestamps)-1):
+        differences.append(int(timestamps[i+1])-int(timestamps[i]))
+    print("Differences average: ",np.average(differences))
+    plt.plot(differences)
+    plt.show()
 
 if __name__ == '__main__':
     main()

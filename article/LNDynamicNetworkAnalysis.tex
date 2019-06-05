@@ -134,7 +134,8 @@ keys]{cryptocode}
 \author[1]{Ferenc Béres}
 \author[2]{István András Seres}
 \author[3]{Claas Brüß}
-\affil[1]{MTA SZTAKI}
+\author[4]{András Benczúr}
+\affil[1,4]{MTA SZTAKI}
 \affil[2]{Department of Computer Algebra, Eötvös Loránd University}
 \affil[3]{Technise Universität München}
 \begin{document}
@@ -143,13 +144,24 @@ keys]{cryptocode}
 \begin{abstract}
  
 \end{abstract}
-\keywords{Bitcoin, Lightning Network, Network Security, Network Topology, Payment Channel Network, Network Robustness}
+\keywords{Bitcoin, Lightning Network, Temporal Network Analysis, Simulation, Network Topology, Payment Channel Network}
 
+%% Pisti
 \section{Introduction}
-\section{Notation}
+\subsection{Related work}
+
+\textbf{Our contribution:}
+
+\section{Background}
+\subsection{Network properties}
 Let $E(t)$ and $N(t)$ denote the number of edges and nodes at time $t$ respectively.
-\section{LN's evolution}
-\subsection{Macroscopic evolution}
+\subsection{Bitcoin and Lightning Network}
+
+\section{Data}
+\section{Experiments}
+\subsection{Simulating transactions on LN}
+\subsection{LN's evolution}
+\subsubsection{Macroscopic evolution}
 Ever since LN had been launched its popularity steadily grew, causing its average degree increasing over time. In \cite{leskovec2008dynamics} it was shown that densification of real networks follow power-law distribution, i.e.: 
 \begin{equation}
 	E(t) \propto N(t)^{a},
@@ -162,12 +174,11 @@ where we call $a$ the power law densification exponent, where  $1\leq a \leq 2$.
 	\caption{LN follows the Densification Power Law relation with exponent $a=1.55634117$. Goodness-of-fit: $R^2=0.98$.  }
 \end{figure}
 
-\subsection{Microscopic evolution}
-\section{Link prediction}
-\section{Fee (sub)optimality}
-\section{Conclusion}
+\subsubsection{Densification of LN}
+\subsubsection{Link prediction}
+\section{Results}
 \section{Acknowledgements}
-
+Antoine and Altangent Labs
 
 \bibliographystyle{plain}
 \bibliography{sample}
