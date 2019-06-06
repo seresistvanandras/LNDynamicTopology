@@ -10,14 +10,114 @@ from matplotlib import pylab
 from collections import OrderedDict
 from bisect import bisect_left
 import numpy.random
-
+from collections import defaultdict
 
 def main():
     #effectiveDiameter()
     #edgeNovsNodeNo()
     #attackingHighDegrees()
     #routingFees()
-    blockHeadersParser()
+    #blockHeadersParser()
+    #channelsParser()
+    networkOverTime()
+
+def networkOverTime():
+    channelsData, opens, closes =channelsParser()
+    #1008 or 2016 (1 week or 2 weeks measured in blocks)
+    LNCreationBlockHeight = 501337
+    lastBlock = 576140
+    G = nx.MultiGraph()
+    seen_nodes = set()
+    numberOfNodes= list()
+    numberOfEdges = list()
+    avgDegree = list()
+    effectDiam = list()
+    for i in range(LNCreationBlockHeight,lastBlock):
+        if i in opens:
+            createdChannels = opens[i]
+            for j in createdChannels:
+                if channelsData[j]['from'] not in seen_nodes:
+                    G.add_node(channelsData[j]['from'])
+                    seen_nodes.add(channelsData[j]['from'])
+                if channelsData[j]['to'] not in seen_nodes:
+                    G.add_node(channelsData[j]['to'])
+                    seen_nodes.add(channelsData[j]['to'])
+                G.add_edge(channelsData[j]['from'], channelsData[j]['to'], capacity=channelsData[j]['amt'])
+        if i in closes:
+            closedChannels = closes[i]
+            for j in closedChannels:
+                if G.has_edge(channelsData[j]['from'],channelsData[j]['to']):
+                    G.remove_edge(channelsData[j]['from'],channelsData[j]['to'])
+                else:
+                    G.remove_edge(channelsData[j]['to'],channelsData[j]['from'], capacity=channelsData[j]['amt'])
+                if G.degree(channelsData[j]['from']) ==0:
+                    G.remove_node(channelsData[j]['from'])
+                if G.degree(channelsData[j]['to']) ==0:
+                    G.remove_node(channelsData[j]['to'])
+        if i % 1008 == 0:
+            numberOfNodes.append(nx.number_of_nodes(G))
+            numberOfEdges.append(nx.number_of_edges(G))
+            avgDegree.append(nx.number_of_edges(G)/nx.number_of_nodes(G))
+
+    fig, ax1 = plt.subplots()
+    t = np.arange(0, len(numberOfNodes), 1)
+    lns1 = ax1.plot(t, numberOfNodes, 'b-', label='Nodes')
+    lns2 = ax1.plot(t, numberOfEdges, 'g-', label='Edges')
+    ax1.set_xlabel('Weeks passed since 2017, December 22nd 12 CET')
+    # Make the y-axis label, ticks and tick labels match the line color.
+    ax1.set_ylabel('Number of nodes/edges', color='b')
+    ax1.tick_params('y', colors='b')
+
+    ax2 = ax1.twinx()
+    lns3 = ax2.plot(t, avgDegree, 'r-', label='Average Degree')
+    ax2.set_ylabel('Average Out Degree', color='r')
+    ax2.tick_params('y', colors='r')
+
+    # added these three lines
+    lns = lns1 + lns2 + lns3
+    labs = [l.get_label() for l in lns]
+    ax1.legend(lns, labs, loc='best')
+    plt.show()
+
+def channelsParser():
+    f = open('ln.tsv','r')
+    channelsData = dict()
+    opens = dict()
+    closes = dict()
+    counter = 0
+    startingBlock = 1000000
+    lastBlock = 0
+    for line in f:
+        fields = line.split('\t')
+        data = {}
+        data['from'] = '0x'+fields[1][3:]
+        data['to'] = '0x'+fields[2][3:]
+        data['tx'] = '0x'+fields[3][3:]
+        data['input'] = fields[4]
+        data['amt'] = fields[5]
+        data['opened'] = fields[6]
+        if int(fields[6])< startingBlock:
+            startingBlock = int(fields[6])
+        if lastBlock< int(fields[6]):
+            lastBlock = int(fields[6])
+        data['closed'] = fields[7]
+        channelsData[fields[0]]=data
+        counter+=1
+        if int(fields[6]) in opens:
+            opens[int(fields[6])].append(fields[0])
+        else:
+            opens[int(fields[6])]=[fields[0]]
+
+        if fields[7]=='\\N\n':
+            continue
+        if int(fields[7]) in closes:
+            closes[int(fields[7])].append(fields[0])
+        else:
+            closes[int(fields[7])]=[fields[0]]
+    print("First LN channel was created at block height",startingBlock)
+    print("We have LN history up to block height", lastBlock)
+
+    return channelsData, opens, closes
 
 def routingFees():
     fileNames = getFileNames()
@@ -253,17 +353,17 @@ def blockHeadersParser():
     counter = 0
     allHeaders = []
     timestamps = []
+    g = open('blockheadersTimestamps.txt','w')
     f = open('blockheadersraw.json','r')
     for line in f:
         counter += 1
         timestamps.append(json.loads(line)['timestamp'])
     timestamps.sort()
-    differences = []
-    for i in range(len(timestamps)-1):
-        differences.append(int(timestamps[i+1])-int(timestamps[i]))
-    print("Differences average: ",np.average(differences))
-    plt.plot(differences)
-    plt.show()
+    for i in timestamps:
+        g.write(str(i)+'\n')
+    f.close()
+    g.close()
+
 
 if __name__ == '__main__':
     main()
