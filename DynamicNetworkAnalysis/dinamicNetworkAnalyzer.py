@@ -32,6 +32,9 @@ def networkOverTime():
     numberOfEdges = list()
     avgDegree = list()
     effectDiam = list()
+    firstConnectedDegrees = []
+    for i in range(1500):
+        firstConnectedDegrees.append(0)
     for i in range(LNCreationBlockHeight,lastBlock):
         if i in opens:
             createdChannels = opens[i]
@@ -42,6 +45,14 @@ def networkOverTime():
                 if channelsData[j]['to'] not in seen_nodes:
                     G.add_node(channelsData[j]['to'])
                     seen_nodes.add(channelsData[j]['to'])
+                if 550000 < i:
+                    if type(G.degree(channelsData[j]['from']))==int and type(G.degree(channelsData[j]['to']))==int:
+                        firstConnectedDegrees[max(G.degree(channelsData[j]['from']), G.degree(channelsData[j]['to']))] += 1
+                    elif type(G.degree(channelsData[j]['from']))==int:
+                        firstConnectedDegrees[max(G.degree(channelsData[j]['from']),len(G.degree(channelsData[j]['to'])))] += 1
+                    elif type(G.degree(channelsData[j]['to']))==int:
+                        firstConnectedDegrees[max(G.degree(channelsData[j]['to']),len(G.degree(channelsData[j]['from'])))] += 1
+
                 G.add_edge(channelsData[j]['from'], channelsData[j]['to'], capacity=channelsData[j]['amt'])
         if i in closes:
             closedChannels = closes[i]
@@ -59,24 +70,27 @@ def networkOverTime():
             numberOfEdges.append(nx.number_of_edges(G))
             avgDegree.append(nx.number_of_edges(G)/nx.number_of_nodes(G))
 
-    fig, ax1 = plt.subplots()
-    t = np.arange(0, len(numberOfNodes), 1)
-    lns1 = ax1.plot(t, numberOfNodes, 'b-', label='Nodes')
-    lns2 = ax1.plot(t, numberOfEdges, 'g-', label='Edges')
-    ax1.set_xlabel('Weeks passed since 2017, December 22nd 12 CET')
-    # Make the y-axis label, ticks and tick labels match the line color.
-    ax1.set_ylabel('Number of nodes/edges', color='b')
-    ax1.tick_params('y', colors='b')
+    print(firstConnectedDegrees)
+    plt.hist(firstConnectedDegrees,bins=50, density=True)
 
-    ax2 = ax1.twinx()
-    lns3 = ax2.plot(t, avgDegree, 'r-', label='Average Degree')
-    ax2.set_ylabel('Average Out Degree', color='r')
-    ax2.tick_params('y', colors='r')
-
-    # added these three lines
-    lns = lns1 + lns2 + lns3
-    labs = [l.get_label() for l in lns]
-    ax1.legend(lns, labs, loc='best')
+    # fig, ax1 = plt.subplots()
+    # t = np.arange(0, len(numberOfNodes), 1)
+    # lns1 = ax1.plot(t, numberOfNodes, 'b-', label='Nodes')
+    # lns2 = ax1.plot(t, numberOfEdges, 'g-', label='Edges')
+    # ax1.set_xlabel('Weeks passed since 2017, December 22nd 12 CET')
+    # # Make the y-axis label, ticks and tick labels match the line color.
+    # ax1.set_ylabel('Number of nodes/edges', color='b')
+    # ax1.tick_params('y', colors='b')
+    #
+    # ax2 = ax1.twinx()
+    # lns3 = ax2.plot(t, avgDegree, 'r-', label='Average Degree')
+    # ax2.set_ylabel('Average Out Degree', color='r')
+    # ax2.tick_params('y', colors='r')
+    #
+    # # added these three lines
+    # lns = lns1 + lns2 + lns3
+    # labs = [l.get_label() for l in lns]
+    # ax1.legend(lns, labs, loc='best')
     plt.show()
 
 def channelsParser():
