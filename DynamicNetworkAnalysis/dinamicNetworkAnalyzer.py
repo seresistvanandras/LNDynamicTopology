@@ -5,7 +5,9 @@ import requests
 import operator
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.stats as st
 from scipy import stats
+from scipy.stats import powerlaw
 from matplotlib import pylab
 from collections import OrderedDict
 from bisect import bisect_left
@@ -19,10 +21,72 @@ def main():
     #routingFees()
     #blockHeadersParser()
     #channelsParser()
-    networkOverTime()
+    #networkOverTime()
+    lifeTimeAnalysis()
+
+def power_law(k_min, k_max, y, gamma):
+    return ((k_max**(-gamma+1) - k_min**(-gamma+1))*y  + k_min**(-gamma+1.0))**1.0/(-gamma + 1.0)
+
+def lifeTimeAnalysis():
+    channelsData, opens, closes, lifetime = channelsParser()
+    smean = np.mean(lifetime)
+    rate = 1. / smean
+
+    smax = np.max(lifetime)
+    blocks = np.linspace(0., smax, 10000)
+    # bin size: interval between two
+    # consecutive values in `days`
+    dt = smax / 9999.
+
+    dist_exp = st.expon.pdf(blocks, scale=1. / rate)
+
+    print("Average lifetime of a payment channel: ", smean)
+    print("Max lifetime of a payment channel: ", smax)
+
+    dist = st.expon
+    args = dist.fit(lifetime)
+    print(args)
+
+    print(st.kstest(lifetime, dist.cdf, args))
+
+    dist = st.fatiguelife
+    args = dist.fit(lifetime)
+    print(st.kstest(lifetime, dist.cdf, args))
+
+    fit = powerlaw.fit(lifetime)
+    print(fit)
+
+    nodes = len(blocks)
+    scale_free_distribution = np.zeros(nodes, float)
+    k_min = 1.0
+    k_max = smax
+    gamma = 0.27233568154779364
+
+    for n in range(nodes):
+        scale_free_distribution[n] = power_law(k_min, k_max, np.random.uniform(0, 1), gamma)
+
+    print(stats.ks_2samp(np.array(lifetime), np.array(scale_free_distribution)))
+
+    dist_fl = dist.pdf(blocks, *args)
+    nbins = 100
+    fig, ax = plt.subplots(1, 1, figsize=(6, 4))
+    ax.hist(lifetime, nbins)
+    ax.plot(blocks, dist_exp * len(lifetime) * smax / nbins,
+            '-r', lw=3, label='Exponential')
+    ax.plot(blocks, dist_fl * len(lifetime) * smax / nbins,'--g', lw=3, label='Birnbaum-Sanders')
+    #ax.plot(blocks, scale_free_distribution, label = 'Scale-free')
+    ax.set_xlabel("Payment channel  lifetime (blocks)")
+    ax.set_ylabel("Number of payment channels")
+    ax.legend()
+
+
+
+    #plt.hist(lifetime, bins=100, density=True)
+    plt.show()
+
 
 def networkOverTime():
-    channelsData, opens, closes =channelsParser()
+    channelsData, opens, closes, lifetime =channelsParser()
     #1008 or 2016 (1 week or 2 weeks measured in blocks)
     LNCreationBlockHeight = 501337
     lastBlock = 576140
@@ -70,8 +134,9 @@ def networkOverTime():
             numberOfEdges.append(nx.number_of_edges(G))
             avgDegree.append(nx.number_of_edges(G)/nx.number_of_nodes(G))
 
-    print(firstConnectedDegrees)
-    plt.hist(firstConnectedDegrees,bins=50, density=True)
+    # print(firstConnectedDegrees)
+    # plt.hist(firstConnectedDegrees, bins=50, density=True)
+
 
     # fig, ax1 = plt.subplots()
     # t = np.arange(0, len(numberOfNodes), 1)
@@ -101,6 +166,7 @@ def channelsParser():
     counter = 0
     startingBlock = 1000000
     lastBlock = 0
+    lifetime = []
     for line in f:
         fields = line.split('\t')
         data = {}
@@ -128,10 +194,11 @@ def channelsParser():
             closes[int(fields[7])].append(fields[0])
         else:
             closes[int(fields[7])]=[fields[0]]
+        lifetime.append(int(fields[7]) - int(fields[6]))
     print("First LN channel was created at block height",startingBlock)
     print("We have LN history up to block height", lastBlock)
 
-    return channelsData, opens, closes
+    return channelsData, opens, closes, lifetime
 
 def routingFees():
     fileNames = getFileNames()
