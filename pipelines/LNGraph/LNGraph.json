@@ -125,6 +125,9 @@
             "type": "Experiment"
         },
         {
+            "dependencies": [
+                "TransactionSimulator"
+            ],
             "is_clone": "no",
             "kernel_type": "py3-env",
             "name": "SimulationResults",
@@ -133,6 +136,10 @@
             "type": "Results"
         },
         {
+            "dependencies": [
+                "GetDirectedGraph",
+                "LabelScraping"
+            ],
             "is_clone": "no",
             "kernel_type": "py3-env",
             "name": "TransactionSimulator",
