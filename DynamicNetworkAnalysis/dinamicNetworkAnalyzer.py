@@ -5,19 +5,200 @@ import requests
 import operator
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.stats as st
 from scipy import stats
+from scipy.stats import powerlaw
 from matplotlib import pylab
 from collections import OrderedDict
 from bisect import bisect_left
 import numpy.random
-
+from collections import defaultdict
 
 def main():
     #effectiveDiameter()
     #edgeNovsNodeNo()
     #attackingHighDegrees()
     #routingFees()
-    blockHeadersParser()
+    #blockHeadersParser()
+    #channelsParser()
+    #networkOverTime()
+    lifeTimeAnalysis()
+
+def power_law(k_min, k_max, y, gamma):
+    return ((k_max**(-gamma+1) - k_min**(-gamma+1))*y  + k_min**(-gamma+1.0))**1.0/(-gamma + 1.0)
+
+def lifeTimeAnalysis():
+    channelsData, opens, closes, lifetime = channelsParser()
+    smean = np.mean(lifetime)
+    rate = 1. / smean
+
+    smax = np.max(lifetime)
+    blocks = np.linspace(0., smax, 10000)
+    # bin size: interval between two
+    # consecutive values in `days`
+    dt = smax / 9999.
+
+    dist_exp = st.expon.pdf(blocks, scale=1. / rate)
+
+    print("Average lifetime of a payment channel: ", smean)
+    print("Max lifetime of a payment channel: ", smax)
+
+    dist = st.expon
+    args = dist.fit(lifetime)
+    print(args)
+
+    print(st.kstest(lifetime, dist.cdf, args))
+
+    dist = st.fatiguelife
+    args = dist.fit(lifetime)
+    print(st.kstest(lifetime, dist.cdf, args))
+
+    fit = powerlaw.fit(lifetime)
+    print(fit)
+
+    nodes = len(blocks)
+    scale_free_distribution = np.zeros(nodes, float)
+    k_min = 1.0
+    k_max = smax
+    gamma = 0.27233568154779364
+
+    for n in range(nodes):
+        scale_free_distribution[n] = power_law(k_min, k_max, np.random.uniform(0, 1), gamma)
+
+    print(stats.ks_2samp(np.array(lifetime), np.array(scale_free_distribution)))
+
+    dist_fl = dist.pdf(blocks, *args)
+    nbins = 100
+    fig, ax = plt.subplots(1, 1, figsize=(6, 4))
+    ax.hist(lifetime, nbins)
+    ax.plot(blocks, dist_exp * len(lifetime) * smax / nbins,
+            '-r', lw=3, label='Exponential')
+    ax.plot(blocks, dist_fl * len(lifetime) * smax / nbins,'--g', lw=3, label='Birnbaum-Sanders')
+    #ax.plot(blocks, scale_free_distribution, label = 'Scale-free')
+    ax.set_xlabel("Payment channel  lifetime (blocks)")
+    ax.set_ylabel("Number of payment channels")
+    ax.legend()
+
+
+
+    #plt.hist(lifetime, bins=100, density=True)
+    plt.show()
+
+
+def networkOverTime():
+    channelsData, opens, closes, lifetime =channelsParser()
+    #1008 or 2016 (1 week or 2 weeks measured in blocks)
+    LNCreationBlockHeight = 501337
+    lastBlock = 576140
+    G = nx.MultiGraph()
+    seen_nodes = set()
+    numberOfNodes= list()
+    numberOfEdges = list()
+    avgDegree = list()
+    effectDiam = list()
+    firstConnectedDegrees = []
+    for i in range(1500):
+        firstConnectedDegrees.append(0)
+    for i in range(LNCreationBlockHeight,lastBlock):
+        if i in opens:
+            createdChannels = opens[i]
+            for j in createdChannels:
+                if channelsData[j]['from'] not in seen_nodes:
+                    G.add_node(channelsData[j]['from'])
+                    seen_nodes.add(channelsData[j]['from'])
+                if channelsData[j]['to'] not in seen_nodes:
+                    G.add_node(channelsData[j]['to'])
+                    seen_nodes.add(channelsData[j]['to'])
+                if 550000 < i:
+                    if type(G.degree(channelsData[j]['from']))==int and type(G.degree(channelsData[j]['to']))==int:
+                        firstConnectedDegrees[max(G.degree(channelsData[j]['from']), G.degree(channelsData[j]['to']))] += 1
+                    elif type(G.degree(channelsData[j]['from']))==int:
+                        firstConnectedDegrees[max(G.degree(channelsData[j]['from']),len(G.degree(channelsData[j]['to'])))] += 1
+                    elif type(G.degree(channelsData[j]['to']))==int:
+                        firstConnectedDegrees[max(G.degree(channelsData[j]['to']),len(G.degree(channelsData[j]['from'])))] += 1
+
+                G.add_edge(channelsData[j]['from'], channelsData[j]['to'], capacity=channelsData[j]['amt'])
+        if i in closes:
+            closedChannels = closes[i]
+            for j in closedChannels:
+                if G.has_edge(channelsData[j]['from'],channelsData[j]['to']):
+                    G.remove_edge(channelsData[j]['from'],channelsData[j]['to'])
+                else:
+                    G.remove_edge(channelsData[j]['to'],channelsData[j]['from'], capacity=channelsData[j]['amt'])
+                if G.degree(channelsData[j]['from']) ==0:
+                    G.remove_node(channelsData[j]['from'])
+                if G.degree(channelsData[j]['to']) ==0:
+                    G.remove_node(channelsData[j]['to'])
+        if i % 1008 == 0:
+            numberOfNodes.append(nx.number_of_nodes(G))
+            numberOfEdges.append(nx.number_of_edges(G))
+            avgDegree.append(nx.number_of_edges(G)/nx.number_of_nodes(G))
+
+    # print(firstConnectedDegrees)
+    # plt.hist(firstConnectedDegrees, bins=50, density=True)
+
+
+    # fig, ax1 = plt.subplots()
+    # t = np.arange(0, len(numberOfNodes), 1)
+    # lns1 = ax1.plot(t, numberOfNodes, 'b-', label='Nodes')
+    # lns2 = ax1.plot(t, numberOfEdges, 'g-', label='Edges')
+    # ax1.set_xlabel('Weeks passed since 2017, December 22nd 12 CET')
+    # # Make the y-axis label, ticks and tick labels match the line color.
+    # ax1.set_ylabel('Number of nodes/edges', color='b')
+    # ax1.tick_params('y', colors='b')
+    #
+    # ax2 = ax1.twinx()
+    # lns3 = ax2.plot(t, avgDegree, 'r-', label='Average Degree')
+    # ax2.set_ylabel('Average Out Degree', color='r')
+    # ax2.tick_params('y', colors='r')
+    #
+    # # added these three lines
+    # lns = lns1 + lns2 + lns3
+    # labs = [l.get_label() for l in lns]
+    # ax1.legend(lns, labs, loc='best')
+    plt.show()
+
+def channelsParser():
+    f = open('ln.tsv','r')
+    channelsData = dict()
+    opens = dict()
+    closes = dict()
+    counter = 0
+    startingBlock = 1000000
+    lastBlock = 0
+    lifetime = []
+    for line in f:
+        fields = line.split('\t')
+        data = {}
+        data['from'] = '0x'+fields[1][3:]
+        data['to'] = '0x'+fields[2][3:]
+        data['tx'] = '0x'+fields[3][3:]
+        data['input'] = fields[4]
+        data['amt'] = fields[5]
+        data['opened'] = fields[6]
+        if int(fields[6])< startingBlock:
+            startingBlock = int(fields[6])
+        if lastBlock< int(fields[6]):
+            lastBlock = int(fields[6])
+        data['closed'] = fields[7]
+        channelsData[fields[0]]=data
+        counter+=1
+        if int(fields[6]) in opens:
+            opens[int(fields[6])].append(fields[0])
+        else:
+            opens[int(fields[6])]=[fields[0]]
+
+        if fields[7]=='\\N\n':
+            continue
+        if int(fields[7]) in closes:
+            closes[int(fields[7])].append(fields[0])
+        else:
+            closes[int(fields[7])]=[fields[0]]
+        lifetime.append(int(fields[7]) - int(fields[6]))
+    print("First LN channel was created at block height",startingBlock)
+    print("We have LN history up to block height", lastBlock)
+
+    return channelsData, opens, closes, lifetime
 
 def routingFees():
     fileNames = getFileNames()
@@ -253,17 +434,17 @@ def blockHeadersParser():
     counter = 0
     allHeaders = []
     timestamps = []
+    g = open('blockheadersTimestamps.txt','w')
     f = open('blockheadersraw.json','r')
     for line in f:
         counter += 1
         timestamps.append(json.loads(line)['timestamp'])
     timestamps.sort()
-    differences = []
-    for i in range(len(timestamps)-1):
-        differences.append(int(timestamps[i+1])-int(timestamps[i]))
-    print("Differences average: ",np.average(differences))
-    plt.plot(differences)
-    plt.show()
+    for i in timestamps:
+        g.write(str(i)+'\n')
+    f.close()
+    g.close()
+
 
 if __name__ == '__main__':
     main()
