@@ -16,7 +16,7 @@ def get_trg_proba(df, eps, providers):
     df["trg_proba"] = df["trg_proba"] / df["trg_proba"].sum()
     
 def init_node_params(edges, providers, eps, alpha=None):
-    G = nx.from_pandas_dataframe(edges, source="src", target="trg", create_using=nx.DiGraph())
+    G = nx.from_pandas_edgelist(edges, source="src", target="trg", create_using=nx.DiGraph())
     node_variables = pd.DataFrame(list(G.degree()), columns=["pub_key","degree"])
     if alpha == None:
         alpha = node_variables["degree"].mean()
@@ -107,7 +107,8 @@ def generate_graph_for_path_search(edges):
     tmp_edges["fee_base_msat"] = 0.0
     tmp_edges["fee_rate_milli_msat"] = 0.0
     all_edges = pd.concat([edges, tmp_edges])
-    return nx.from_pandas_dataframe(all_edges, source="src", target="trg", edge_attr=["total_fee"], create_using=nx.DiGraph())
+    # networkx versiom >= 2: from_pandas_edgelist 
+    return nx.from_pandas_edgelist(all_edges, source="src", target="trg", edge_attr=["total_fee"], create_using=nx.DiGraph())
 
 class TransactionSimulator():
     def __init__(self, edges, providers, amount_sat, k, eps=0.05, alpha=2.0):
@@ -252,7 +253,7 @@ def calc_optimal_base_fee(shortest_paths, alternative_paths, all_router_fees):
     "Node ratio that have alternative routing after removals: %f" % (num_routers_with_alternative_paths / num_routers)
     routers = list(p_altered["node"].unique())
     opt_strategy = []
-    for n in tqdm(routers):
+    for n in tqdm(routers, mininterval=5):
         opt_delta, opt_income, opt_ratio, origi_income, origi_num_trans = calculate_max_income(n, p_altered, shortest_paths, all_router_fees, visualize=False)
         opt_strategy.append((n, opt_delta, opt_ratio, opt_income, origi_income, origi_num_trans))
     opt_fees_df = pd.DataFrame(opt_strategy, columns=["node","opt_delta","opt_traffic","opt_income","origi_income", "origi_num_trans"])

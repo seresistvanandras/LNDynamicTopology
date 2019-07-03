@@ -32,7 +32,7 @@ edges = snapshots[snapshots["snapshot_id"]==snapshot_id]
 
 simulator = ts.TransactionSimulator(edges, providers, amount_sat, num_transactions)
 transactions = simulator.transactions
-shortest_paths, alternative_paths, _ = simulator.simulate(weight="total_fee")
+shortest_paths, alternative_paths, all_router_fees = simulator.simulate(weight="total_fee")
 total_income, total_fee = simulator.export(output_dir)
 #harmonic_sums, routing_differences = ts.calculate_node_influence(shortest_paths, alternative_paths)
 #harmonic_sums.reset_index().to_csv(output_file, index=False)
@@ -41,7 +41,7 @@ total_income, total_fee = simulator.export(output_dir)
 
 print("Total income:", total_income.sum())
 
-opt_fees_df, p_altered = calc_optimal_base_fee(shortest_paths, alternative_paths, all_router_fees)
+opt_fees_df, p_altered = ts.calc_optimal_base_fee(shortest_paths, alternative_paths, all_router_fees)
 print("Optimal pricing revenue:", (opt_fees_df["opt_income"] - opt_fees_df["origi_income"]).sum())
 
 x = [10,20,50,100,200]
