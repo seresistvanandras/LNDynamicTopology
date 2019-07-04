@@ -13,7 +13,7 @@ amount_sat = ph.get("amount_sat")
 num_transactions = ph.get("num_transactions")
 
 data_dir = ph.get("data_dir")
-output_dir = "%s/simulations/%s" % (data_dir, snapshot_id)
+output_dir = "%s/simulations/%s/%s" % (data_dir, snapshot_id, experiment_id)
 print(output_dir)
 
 if not os.path.exists(output_dir):
@@ -41,13 +41,7 @@ total_income, total_fee = simulator.export(output_dir)
 
 print("Total income:", total_income.sum())
 
+# 5. Analyze optimal routing fee for nodes
 opt_fees_df, p_altered = ts.calc_optimal_base_fee(shortest_paths, alternative_paths, all_router_fees)
-print("Optimal pricing revenue:", (opt_fees_df["opt_income"] - opt_fees_df["origi_income"]).sum())
-
-x = [10,20,50,100,200]
-y = []
-for k in x:
-    y.append(opt_fees_df[opt_fees_df["node"].isin(list(total_income[:k].index))]["income_gain"].mean())
-print(list(zip(x,y)))
-
+opt_fees_df.to_csv("%s/opt_fees.csv" % output_dir, index=False)
 print("done")
