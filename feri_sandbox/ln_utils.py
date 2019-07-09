@@ -206,15 +206,18 @@ def get_attachement_popularity(attachments):
     return pop_df
 
 def corr_mx(df, method="spearman"):
+    """'ties' parameter only works for spearman correlation"""
     s = df.shape[1]
     arr = df.values
-    corr = np.ones((s,s))
+    corr = np.eye(s)
     for i in range(s):
         for j in range(i+1,s):
             if method == "wkendall":
                 corr[i,j] = st.weightedtau(arr[:,i],arr[:,j])[0]
             elif method == "kendall":
                 corr[i,j] = st.kendalltau(arr[:,i],arr[:,j])[0]
+            elif method == "pearson":
+                corr[i,j] = st.pearsonr(arr[:,i],arr[:,j])[0]
             else:
                 corr[i,j] = st.spearmanr(arr[:,i],arr[:,j])[0]
             corr[j,i] = corr[i,j]

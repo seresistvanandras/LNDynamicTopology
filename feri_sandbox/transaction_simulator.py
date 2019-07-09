@@ -149,9 +149,9 @@ class TransactionSimulator():
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         total_income = get_total_income_for_routers(self.all_router_fees)
-        total_income.to_csv("%s/router_incomes.csv" % output_dir, index=False)
+        total_income.to_csv("%s/router_incomes.csv" % output_dir, index=True)
         total_fee = get_total_fee_for_sources(self.transactions, self.shortest_paths)
-        total_fee.to_csv("%s/source_fees.csv" % output_dir, index=False)
+        total_fee.to_csv("%s/source_fees.csv" % output_dir, index=True)
         if len(self.alternative_paths) > 0: 
             print(self.alternative_paths["cost"].isnull().value_counts())
         print("Export DONE")
