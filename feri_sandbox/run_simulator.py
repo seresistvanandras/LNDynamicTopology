@@ -11,6 +11,7 @@ experiment_id = ph.get("experiment_id")
 snapshot_id = ph.get("snapshot_id")
 amount_sat = ph.get("amount_sat")
 num_transactions = ph.get("num_transactions")
+alpha = ph.get("alpha")
 
 data_dir = ph.get("data_dir")
 output_dir = "%s/simulations/%s/%s" % (data_dir, snapshot_id, experiment_id)
@@ -30,7 +31,7 @@ edges = snapshots[snapshots["snapshot_id"]==snapshot_id]
 
 # 3. Simulation
 
-simulator = ts.TransactionSimulator(edges, providers, amount_sat, num_transactions)
+simulator = ts.TransactionSimulator(edges, providers, amount_sat, num_transactions, alpha=alpha)
 transactions = simulator.transactions
 shortest_paths, alternative_paths, all_router_fees = simulator.simulate(weight="total_fee")
 total_income, total_fee = simulator.export(output_dir)

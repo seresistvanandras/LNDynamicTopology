@@ -1,0 +1,20 @@
+{
+    "config_path": "pipelines/LinkPrediction/LinkPrediction.json",
+    "description": "Add some custom description for this pipeline!",
+    "id": "2",
+    "imports": [],
+    "name": "LinkPrediction",
+    "notebooks": [
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "NodeAttachments",
+            "path": "feri_sandbox/NodeAttachments.ipynb",
+            "pipeline_status": "off",
+            "type": "Analysis"
+        }
+    ],
+    "parameter_notebooks": [],
+    "py_scripts": [],
+    "reports": []
+}

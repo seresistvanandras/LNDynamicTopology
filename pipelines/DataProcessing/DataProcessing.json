@@ -1,0 +1,43 @@
+{
+    "config_path": "pipelines/DataProcessing/DataProcessing.json",
+    "description": "Add some custom description for this pipeline!",
+    "id": "1",
+    "imports": [
+        {
+            "kernel_type": "py3-env",
+            "name": "scraping",
+            "path": "feri_sandbox/scraping.py",
+            "type": "Crawler"
+        }
+    ],
+    "name": "DataProcessing",
+    "notebooks": [
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "GetDirectedGraph",
+            "path": "feri_sandbox/GetDirectedGraph.ipynb",
+            "pipeline_status": "off",
+            "type": "Preprocessing"
+        },
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "LNDataLoader",
+            "path": "feri_sandbox/LNDataLoader.ipynb",
+            "pipeline_status": "off",
+            "type": "Preprocessing"
+        },
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "LabelScraping",
+            "path": "feri_sandbox/LabelScraping.ipynb",
+            "pipeline_status": "off",
+            "type": "Crawler"
+        }
+    ],
+    "parameter_notebooks": [],
+    "py_scripts": [],
+    "reports": []
+}

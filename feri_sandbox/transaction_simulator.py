@@ -11,16 +11,26 @@ def get_src_proba(df, alpha):
     df["src_proba"] = alpha / (alpha + df["degree"])
     df["src_proba"] = df["src_proba"] / df["src_proba"].sum()
     
+def get_src_rayleigh_proba(df):
+    s = df["total_capacity"].median()
+    print(s)
+    x = np.array(df["total_capacity"], dtype="float64")
+    df["src_proba"] = (x/s**2) * np.exp(-np.square(x)/(2.0*s**2))
+    df["src_proba"] = df["src_proba"] / df["src_proba"].sum()
+    
 def get_trg_proba(df, eps, providers):
     df["trg_proba"] = eps + (1.0 - eps) * df.apply(lambda x: x["degree"] if x["pub_key"] in providers else 0.0, axis=1)
     df["trg_proba"] = df["trg_proba"] / df["trg_proba"].sum()
     
 def init_node_params(edges, providers, eps, alpha=None):
-    G = nx.from_pandas_edgelist(edges, source="src", target="trg", create_using=nx.DiGraph())
-    node_variables = pd.DataFrame(list(G.degree()), columns=["pub_key","degree"])
+    G = nx.from_pandas_edgelist(edges, source="src", target="trg", edge_attr=["capacity"], create_using=nx.DiGraph())
+    degrees = pd.DataFrame(list(G.degree()), columns=["pub_key","degree"])
+    total_capacity = pd.DataFrame(list(nx.degree(G, weight="capacity")), columns=["pub_key","total_capacity"])
+    node_variables = degrees.merge(total_capacity, on="pub_key")
     if alpha == None:
-        alpha = node_variables["degree"].mean()
-    get_src_proba(node_variables, alpha)
+        get_src_rayleigh_proba(node_variables)
+    else:
+        get_src_proba(node_variables, alpha)
     get_trg_proba(node_variables, eps, providers)
     return node_variables
     
@@ -108,7 +118,7 @@ def generate_graph_for_path_search(edges):
     tmp_edges["fee_rate_milli_msat"] = 0.0
     all_edges = pd.concat([edges, tmp_edges])
     # networkx versiom >= 2: from_pandas_edgelist 
-    return nx.from_pandas_edgelist(all_edges, source="src", target="trg", edge_attr=["total_fee"], create_using=nx.DiGraph())
+    return nx.from_pandas_edgelist(all_edges, source="src", target="trg", edge_attr=["total_fee","capacity"], create_using=nx.DiGraph())
 
 class TransactionSimulator():
     def __init__(self, edges, providers, amount_sat, k, eps=0.05, alpha=2.0):

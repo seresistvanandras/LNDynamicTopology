@@ -1,6 +1,7 @@
 {
     "config_path": "pipelines/LNGraph/LNGraph.json",
     "default_config": {
+        "alpha": 2.0,
         "amount_sat": 200000,
         "data_dir": "/mnt/idms/fberes/data/bitcoin_ln_research",
         "experiment_id": "trial",
@@ -37,12 +38,6 @@
         },
         {
             "kernel_type": "py3-env",
-            "name": "scraping",
-            "path": "feri_sandbox/scraping.py",
-            "type": "SCraping"
-        },
-        {
-            "kernel_type": "py3-env",
             "name": "transaction_simulator",
             "path": "feri_sandbox/transaction_simulator.py",
             "type": "Simulator"
@@ -70,57 +65,10 @@
             "type": "Results"
         },
         {
-            "dependencies": [
-                "GetDirectedGraph"
-            ],
             "is_clone": "no",
             "kernel_type": "py3-env",
             "name": "CentralityCalculator",
             "path": "feri_sandbox/CentralityCalculator.ipynb",
-            "pipeline_status": "off",
-            "type": "Experiment"
-        },
-        {
-            "is_clone": "no",
-            "kernel_type": "py3-env",
-            "name": "FirstLook",
-            "path": "feri_sandbox/FirstLook.ipynb",
-            "pipeline_status": "off",
-            "type": "Data"
-        },
-        {
-            "is_clone": "no",
-            "kernel_type": "py3-env",
-            "name": "GetDirectedGraph",
-            "path": "feri_sandbox/GetDirectedGraph.ipynb",
-            "pipeline_status": "off",
-            "type": "Data"
-        },
-        {
-            "is_clone": "no",
-            "kernel_type": "py3-env",
-            "name": "LNDataLoader",
-            "path": "feri_sandbox/LNDataLoader.ipynb",
-            "pipeline_status": "off",
-            "type": "Data"
-        },
-        {
-            "is_clone": "no",
-            "kernel_type": "py3-env",
-            "name": "LabelScraping",
-            "path": "feri_sandbox/LabelScraping.ipynb",
-            "pipeline_status": "off",
-            "type": "Data"
-        },
-        {
-            "dependencies": [
-                "CentralityCalculator",
-                "GetDirectedGraph"
-            ],
-            "is_clone": "no",
-            "kernel_type": "py3-env",
-            "name": "NodeAttachments",
-            "path": "feri_sandbox/NodeAttachments.ipynb",
             "pipeline_status": "off",
             "type": "Experiment"
         },
@@ -136,10 +84,6 @@
             "type": "Results"
         },
         {
-            "dependencies": [
-                "GetDirectedGraph",
-                "LabelScraping"
-            ],
             "is_clone": "no",
             "kernel_type": "py3-env",
             "name": "TransactionSimulator",
