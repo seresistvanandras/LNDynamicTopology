@@ -120,12 +120,26 @@ def generate_graph_for_path_search(edges):
     # networkx versiom >= 2: from_pandas_edgelist 
     return nx.from_pandas_edgelist(all_edges, source="src", target="trg", edge_attr=["total_fee","capacity"], create_using=nx.DiGraph())
 
+def calculate_tx_fee(df, amount_sat):
+    # first part: fee_base_msat -> fee_base_sat
+    # second part: milli_msat == 10^-6 sat : fee_rate_milli_msat -> fee_rate_sat
+    return df["fee_base_msat"] / 1000.0 + amount_sat * df["fee_rate_milli_msat"] / 10.0**6
+
+def prepare_edges_for_simulation(edges, amount_sat, drop_disabled):
+    # remove edges with capacity below threshold
+    tmp_edges = edges[edges["capacity"] > amount_sat]
+    # remove disabled edges
+    if drop_disabled:
+        tmp_edges = tmp_edges[~tmp_edges["disabled"]]
+    print("Number of deleted directed channels:", len(edges) - len(tmp_edges))
+    print("Number of remaining directed channels:", len(tmp_edges))
+    tmp_edges["total_fee"] = calculate_tx_fee(tmp_edges, amount_sat)
+    print("Total transaction fee per edge were calculated")
+    return tmp_edges
+
 class TransactionSimulator():
-    def __init__(self, edges, providers, amount_sat, k, eps=0.05, alpha=2.0):
-        self.edges = edges[edges["capacity"] > amount_sat]
-        print("Number of deleted directed channels:", len(edges) - len(self.edges))
-        print("Number of remaining directed channels:", len(self.edges))
-        self.edges["total_fee"] = self.edges["fee_base_msat"] / 1000.0 + amount_sat * self.edges["fee_rate_milli_msat"] / 10.0**6
+    def __init__(self, edges, providers, amount_sat, k, eps=0.05, alpha=2.0, drop_disabled=True):
+        self.edges = prepare_edges_for_simulation(edges, amount_sat, drop_disabled)
         self.G = generate_graph_for_path_search(self.edges)
         self.providers = list(set(providers).intersection(set(self.G.nodes())))
         self.node_variables = init_node_params(self.edges, self.providers, eps, alpha)

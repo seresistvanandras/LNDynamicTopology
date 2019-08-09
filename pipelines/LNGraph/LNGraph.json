@@ -4,6 +4,7 @@
         "alpha": 2.0,
         "amount_sat": 200000,
         "data_dir": "/mnt/idms/fberes/data/bitcoin_ln_research",
+        "day_interval": 7,
         "experiment_id": "trial",
         "num_transactions": 20000,
         "snapshot_id": 0,

@@ -5,6 +5,12 @@
     "imports": [
         {
             "kernel_type": "py3-env",
+            "name": "ln_utils",
+            "path": "feri_sandbox/ln_utils.py",
+            "type": "Utils"
+        },
+        {
+            "kernel_type": "py3-env",
             "name": "scraping",
             "path": "feri_sandbox/scraping.py",
             "type": "Crawler"

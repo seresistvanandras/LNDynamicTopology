@@ -1,12 +1,33 @@
-import json
+import json, time, os
 import pandas as pd
 import numpy as np
 import networkx as nx
 import scipy.stats as st
 import matplotlib.pyplot as plt
 import seaborn as sns
+from tqdm import tqdm
 
 ### preprocessing ###
+
+def extract_snapshot_ends(data_dir, start_time, day_threshold):
+    files =  [f for f in sorted(os.listdir(data_dir)) if ".json" in f]
+    idx = 0
+    snapshot_ends = [start_time]
+    # TODO: why the first element is left out?
+    for f in files[1:]:
+        t = int(f.split(".")[0])
+        diff = (t-snapshot_ends[idx])//86400
+        if diff >= day_threshold:
+            snapshot_ends.append(t)
+            idx += 1
+    return snapshot_ends
+
+def extract_additional_dates(previous_day, last_day, day_threshold):
+    date_ids = []
+    delta = 86400*day_threshold
+    for ts in range(previous_day,last_day-delta,delta):
+        date_ids.append(time.strftime('%m%d',  time.gmtime(ts+delta)))
+    return date_ids
 
 def load_temp_data(json_files, node_keys=["pub_key","last_update"], edge_keys=["node1_pub","node2_pub","last_update","capacity"]):
     """Load LN graph json files from several snapshots"""
@@ -31,7 +52,10 @@ def load_temp_data(json_files, node_keys=["pub_key","last_update"], edge_keys=["
 
 def generate_directed_graph(edges, policy_keys=['disabled', 'fee_base_msat', 'fee_rate_milli_msat', 'min_htlc']):
     directed_edges = []
-    for idx, row in edges.iterrows():
+    indices = edges.index
+    #for _, row in edges.iterrows():
+    for idx in tqdm(indices):
+        row = edges.loc[idx]
         e1 = [row[x] for x in ["snapshot_id","node1_pub","node2_pub","last_update","channel_id","capacity"]]
         e2 = [row[x] for x in ["snapshot_id","node2_pub","node1_pub","last_update","channel_id","capacity"]]
         if row["node2_policy"] == None:
