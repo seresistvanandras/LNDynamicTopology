@@ -102,7 +102,8 @@ def get_snapshots(edges_df, weight_cols=None):
             snap_edges["rec_num_channels"] = 1.0 / snap_edges["num_channels"]
             cols.append("rec_num_channels")
         print(i, len(snap_edges))
-        snapshot_graphs.append(nx.from_pandas_dataframe(snap_edges, source="src", target="trg", edge_attr=cols, create_using=nx.DiGraph()))
+        snapshot_graphs.append(nx.from_pandas_edgelist(snap_edges, source="src", target="trg", edge_attr=cols, create_using=nx.DiGraph()))
+        #snapshot_graphs.append(nx.from_pandas_dataframe(snap_edges, source="src", target="trg", edge_attr=cols, create_using=nx.DiGraph()))
     return snapshot_graphs, snapshot_edges
 
 def get_snapshot_properties(snapshot_graphs, weight):

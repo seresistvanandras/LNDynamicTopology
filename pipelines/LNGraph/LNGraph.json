@@ -5,6 +5,7 @@
         "amount_sat": 200000,
         "data_dir": "/mnt/idms/fberes/data/bitcoin_ln_research",
         "day_interval": 7,
+        "drop_disabled": true,
         "experiment_id": "trial",
         "num_transactions": 20000,
         "snapshot_id": 0,
@@ -46,14 +47,6 @@
     ],
     "name": "LNGraph",
     "notebooks": [
-        {
-            "is_clone": "no",
-            "kernel_type": "py3-env",
-            "name": "CapacityAnalysis",
-            "path": "feri_sandbox/CapacityAnalysis.ipynb",
-            "pipeline_status": "off",
-            "type": "Experiment"
-        },
         {
             "dependencies": [
                 "CentralityCalculator"

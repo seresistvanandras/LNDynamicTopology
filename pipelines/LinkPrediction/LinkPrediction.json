@@ -8,6 +8,14 @@
         {
             "is_clone": "no",
             "kernel_type": "py3-env",
+            "name": "CapacityAnalysis",
+            "path": "feri_sandbox/CapacityAnalysis.ipynb",
+            "pipeline_status": "off",
+            "type": "LinkPrediction"
+        },
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
             "name": "NodeAttachments",
             "path": "feri_sandbox/NodeAttachments.ipynb",
             "pipeline_status": "off",
@@ -16,5 +24,22 @@
     ],
     "parameter_notebooks": [],
     "py_scripts": [],
-    "reports": []
+    "reports": [
+        {
+            "date": "2019-08-14",
+            "id": "only_homophily_k100_2019-08-14",
+            "name": "only_homophily_k100",
+            "note": "Link prediction experiments with Alpenglow top k=100 recommendation with online DCG evaluation.",
+            "type": "local",
+            "user": "fberes"
+        },
+        {
+            "date": "2019-08-15",
+            "id": "only_homophily_k20_2019-08-15",
+            "name": "only_homophily_k20",
+            "note": "Link prediction experiments with Alpenglow top k=20 recommendation with online DCG evaluation.",
+            "type": "local",
+            "user": "fberes"
+        }
+    ]
 }
