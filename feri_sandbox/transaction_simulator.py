@@ -24,6 +24,7 @@ def get_trg_proba(df, eps, providers):
     
 def init_node_params(edges, providers, eps, alpha=None):
     G = nx.from_pandas_edgelist(edges, source="src", target="trg", edge_attr=["capacity"], create_using=nx.DiGraph())
+    providers = list(set(providers).intersection(set(G.nodes())))
     degrees = pd.DataFrame(list(G.degree()), columns=["pub_key","degree"])
     total_capacity = pd.DataFrame(list(nx.degree(G, weight="capacity")), columns=["pub_key","total_capacity"])
     node_variables = degrees.merge(total_capacity, on="pub_key")
@@ -32,7 +33,7 @@ def init_node_params(edges, providers, eps, alpha=None):
     else:
         get_src_proba(node_variables, alpha)
     get_trg_proba(node_variables, eps, providers)
-    return node_variables
+    return node_variables, providers
     
 def sample_transactions(node_variables, amount_in_satochi, K):
     nodes = list(node_variables["pub_key"])
@@ -45,19 +46,16 @@ def sample_transactions(node_variables, amount_in_satochi, K):
     print("Number of loop transactions (removed):", K-len(transactions))
     return transactions[["transaction_id","source","target","amount_SAT"]]
 
-def get_shortest_paths(G, transactions, cost_dict, hash_transactions=True, cost_prefix="", weight=None):
+def get_shortest_paths(G, transactions, hash_transactions=True, cost_prefix="", weight=None):
     shortest_paths = []
     router_fee_tuples = []
     hashed_transactions = {}
     for idx, row in transactions.iterrows():
         try:
             p = nx.shortest_path(G, source=row["source"], target=row["target"] + "_trg", weight=weight)
-            #c = nx.shortest_path_length(G, source=row["source"], target=row["target"] + "_trg", weight=weight)
-            cost, router_fees = process_path(p, row["amount_SAT"], cost_dict)
+            cost, router_fees = process_path(p, row["amount_SAT"], G, weight)
             routers = list(router_fees.keys())
             router_fee_tuples += list(zip([row["transaction_id"]]*len(router_fees),router_fees.keys(),router_fees.values()))
-            #if c != cost:
-            #    raise RuntimeError("%i: %s->%s: %f - %f | %s" % (row["transaction_id"], row["source"], row["target"], c, cost, p))
             if hash_transactions:
                 for router in routers:
                     if not router in hashed_transactions:
@@ -76,49 +74,70 @@ def get_shortest_paths(G, transactions, cost_dict, hash_transactions=True, cost_
     all_router_fees = pd.DataFrame(router_fee_tuples, columns=["transaction_id","node","fee"])
     return pd.DataFrame(shortest_paths, columns=["transaction_id", cost_prefix+"cost", "length", "path"]), hashed_transactions,  all_router_fees
 
-def process_path(path, amount_in_satoshi, cost_dict):
+def process_path(path, amount_in_satoshi, G, weight):
     routers = {}
     for i in range(len(path)-2):
         n1, n2 = path[i], path[i+1]
-        base_fee, fee_rate = cost_dict[(n1,n2)]
-        routers[n2] = base_fee / 1000.0 + amount_in_satoshi * fee_rate / 10.0**6
+        routers[n2] = G[n1][n2][weight]
     return np.sum(list(routers.values())), routers
 
-def shortest_paths_with_exclusion(G, cost_dict, cost_prefix, weight, hash_bucket_item):
+def shortest_paths_with_exclusion(G, cost_prefix, weight, hash_bucket_item):
     node, bucket_transactions = hash_bucket_item
     H = G.copy()
     H.remove_node(node)
-    H.remove_node(node + "_trg") # delete node copy as well
-    new_paths, _, _ = get_shortest_paths(H, bucket_transactions, cost_dict, hash_transactions=False, cost_prefix=cost_prefix, weight=weight)
+    if node + "_trg" in G.nodes():
+        H.remove_node(node + "_trg") # delete node copy as well
+    new_paths, _, _ = get_shortest_paths(H, bucket_transactions,  hash_transactions=False, cost_prefix=cost_prefix, weight=weight)
     new_paths["node"] = node
     return new_paths
 
 import functools
 import concurrent.futures
 
-def get_shortest_paths_with_node_removals(G, hashed_transactions, cost_dict, cost_prefix="", weight=None, threads=4):
+def get_shortest_paths_with_node_removals(G, hashed_transactions, cost_prefix="", weight=None, threads=4):
     print(threads)
     if threads > 1:
-        f_partial = functools.partial(shortest_paths_with_exclusion, G, cost_dict, cost_prefix, weight)
+        f_partial = functools.partial(shortest_paths_with_exclusion, G,  cost_prefix, weight)
         executor = concurrent.futures.ProcessPoolExecutor(threads)
         alternative_paths = list(executor.map(f_partial, hashed_transactions.items()))
         executor.shutdown()
     else:
         alternative_paths = []
         for hash_bucket_item in tqdm(hashed_transactions.items(), mininterval=10):
-            alternative_paths.append(shortest_paths_with_exclusion(G, cost_dict, cost_prefix, weight, hash_bucket_item))
+            alternative_paths.append(shortest_paths_with_exclusion(G, cost_prefix, weight, hash_bucket_item))
     return pd.concat(alternative_paths)
 
-def generate_graph_for_path_search(edges):
+def generate_graph_for_path_search(edges, transactions):
     """The last edge in each path has zero cost! Only routing has transaction fees."""
-    tmp_edges = edges.copy()
-    tmp_edges["trg"] = tmp_edges["trg"].apply(lambda x: str(x) + "_trg")
-    tmp_edges["total_fee"] = 0.0
-    tmp_edges["fee_base_msat"] = 0.0
-    tmp_edges["fee_rate_milli_msat"] = 0.0
-    all_edges = pd.concat([edges, tmp_edges])
-    # networkx versiom >= 2: from_pandas_edgelist 
-    return nx.from_pandas_edgelist(all_edges, source="src", target="trg", edge_attr=["total_fee","capacity"], create_using=nx.DiGraph())
+    targets = list(transactions["target"].unique())
+    sources = list(transactions["source"].unique())
+    participants = set(sources).union(set(targets))
+    edges_tmp = edges.copy()
+    # delete expensive multi-edges
+    edges_tmp = edges_tmp .sort_values(["src","trg","total_fee"]).drop_duplicates(subset=["src","trg"],keep='first')
+    # collect one-degree nodes
+    G_undir = nx.from_pandas_edgelist(edges, source="src", target="trg", create_using=nx.Graph())
+    degrees = dict(G_undir.degree())
+    deleted = []
+    for n, deg in degrees.items():
+        if deg < 2 and (n not in participants):
+            deleted.append(n)
+    # add pseudo targets
+    ps_edges = edges[edges["trg"].isin(targets)].copy()
+    ps_edges["trg"] = ps_edges["trg"].apply(lambda x: str(x) + "_trg")
+    ps_edges["total_fee"] = 0.0
+    ps_edges["fee_base_msat"] = 0.0
+    ps_edges["fee_rate_milli_msat"] = 0.0
+    print(len(edges_tmp),len(ps_edges))
+    # initialize transaction graph
+    all_edges = pd.concat([edges_tmp, ps_edges])
+    # networkx versiom >= 2: from_pandas_edgelist
+    G = nx.from_pandas_edgelist(all_edges, source="src", target="trg", edge_attr=["total_fee","capacity"], create_using=nx.DiGraph())
+    # delete one-degree nodes
+    for n in deleted:
+        G.remove_node(n)
+    print("%i one-degree nodes were deleted" % len(deleted))
+    return G
 
 def calculate_tx_fee(df, amount_sat):
     # first part: fee_base_msat -> fee_base_sat
@@ -140,25 +159,21 @@ def prepare_edges_for_simulation(edges, amount_sat, drop_disabled):
 class TransactionSimulator():
     def __init__(self, edges, providers, amount_sat, k, eps=0.05, alpha=2.0, drop_disabled=True):
         self.edges = prepare_edges_for_simulation(edges, amount_sat, drop_disabled)
-        self.G = generate_graph_for_path_search(self.edges)
-        self.providers = list(set(providers).intersection(set(self.G.nodes())))
-        self.node_variables = init_node_params(self.edges, self.providers, eps, alpha)
+        self.node_variables, self.providers = init_node_params(self.edges, providers, eps, alpha)
         self.transactions = sample_transactions(self.node_variables, amount_sat, k)
+        self.G = generate_graph_for_path_search(self.edges, self.transactions)
         print("%i transaction were generated." % k)
     
     def simulate(self, weight=None, with_node_removals=True, max_threads=4):
         print("Using weight='%s'" % weight)
-        keys = list(zip(self.edges["src"], self.edges["trg"]))
-        vals = list(zip(self.edges["fee_base_msat"], self.edges["fee_rate_milli_msat"]))
-        cost_dict = dict(zip(keys,vals))
         print("Transactions simulated on original graph STARTED..")
-        shortest_paths, hashed_transactions, all_router_fees = get_shortest_paths(self.G, self.transactions, cost_dict, cost_prefix="original_", weight=weight)
+        shortest_paths, hashed_transactions, all_router_fees = get_shortest_paths(self.G, self.transactions, cost_prefix="original_", weight=weight)
         print("Transactions simulated on original graph DONE")
         print("Length distribution of optimal paths:")
         print(shortest_paths["length"].value_counts())
         print("Transactions simulated with node removals STARTED..")
         if with_node_removals:
-            alternative_paths = get_shortest_paths_with_node_removals(self.G, hashed_transactions, cost_dict, weight=weight, threads=max_threads)
+            alternative_paths = get_shortest_paths_with_node_removals(self.G, hashed_transactions, weight=weight, threads=max_threads)
             print("Transactions simulated with node removals DONE")
             print("Length distribution of optimal paths:")
             print(alternative_paths["length"].value_counts())

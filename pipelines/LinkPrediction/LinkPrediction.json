@@ -1,17 +1,39 @@
 {
     "config_path": "pipelines/LinkPrediction/LinkPrediction.json",
-    "description": "Add some custom description for this pipeline!",
+    "default_config": {
+        "dim": 10,
+        "ex_known": true,
+        "neg_rate": 100,
+        "seed": 254938879,
+        "top_first_days": 20,
+        "topk": 20
+    },
+    "description": "Pipeline for link prediction experiments",
     "id": "2",
     "imports": [],
     "name": "LinkPrediction",
     "notebooks": [
         {
+            "dependencies": [
+                "batch_online_mf",
+                "offline_mf",
+                "online_mf",
+                "popularity"
+            ],
             "is_clone": "no",
             "kernel_type": "py3-env",
-            "name": "CapacityAnalysis",
-            "path": "feri_sandbox/CapacityAnalysis.ipynb",
+            "name": "LinkPredResults",
+            "path": "feri_sandbox/LinkPredResults.ipynb",
             "pipeline_status": "off",
-            "type": "LinkPrediction"
+            "type": "Results"
+        },
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "LinkPredWithSimulation",
+            "path": "feri_sandbox/LinkPredWithSimulation.ipynb",
+            "pipeline_status": "off",
+            "type": "Simulation"
         },
         {
             "is_clone": "no",
@@ -22,8 +44,67 @@
             "type": "Analysis"
         }
     ],
-    "parameter_notebooks": [],
-    "py_scripts": [],
+    "parameter_notebooks": [
+        {
+            "kernel_type": "py3-env",
+            "name": "LinkPredParams",
+            "path": "pipelines/LinkPrediction/LinkPredParams.ipynb"
+        }
+    ],
+    "py_scripts": [
+        {
+            "dependencies": [
+                "prepare_data_for_link_prediction"
+            ],
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "batch_online_mf",
+            "path": "feri_sandbox/python/batch_online_mf.py",
+            "pipeline_status": "off",
+            "type": "BatchOnlineMF"
+        },
+        {
+            "dependencies": [
+                "prepare_data_for_link_prediction"
+            ],
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "offline_mf",
+            "path": "feri_sandbox/python/offline_mf.py",
+            "pipeline_status": "off",
+            "type": "OfflineMF"
+        },
+        {
+            "dependencies": [
+                "prepare_data_for_link_prediction"
+            ],
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "online_mf",
+            "path": "feri_sandbox/python/online_mf.py",
+            "pipeline_status": "off",
+            "type": "OnlineMF"
+        },
+        {
+            "dependencies": [
+                "prepare_data_for_link_prediction"
+            ],
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "popularity",
+            "path": "feri_sandbox/python/popularity.py",
+            "pipeline_status": "off",
+            "type": "PopularityModel"
+        },
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "prepare_data_for_link_prediction",
+            "path": "feri_sandbox/python/prepare_data_for_link_prediction.py",
+            "pipeline_status": "off",
+            "type": "Preprocessing"
+        }
+    ],
     "reports": [
         {
             "date": "2019-08-14",
