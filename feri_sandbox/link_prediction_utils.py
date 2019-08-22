@@ -15,7 +15,7 @@ def process_edges(edges):
     for idx in tqdm(indices, mininterval=10):
         row = edges_tmp.loc[idx]
         # channel events
-        n1p, n2p, chan_id, last_update, cap = row["node1_pub"], row["node2_pub"], row["channel_id"], row["last_update"], row["capacity"]
+        n1p, n2p, chan_id, last_update, cap = row["src"], row["trg"], row["channel_id"], row["last_update"], row["capacity"]
         is_new_channel = chan_id not in channel_state
         if (n1p,n2p) in seen_edges or (n2p,n1p) in seen_edges:
             is_new_edge = False
@@ -39,12 +39,18 @@ def select_random_direction_for_eval(new_channels):
     link_pred_edges = []
     for idx, row in new_channels.iterrows():
         n1, n2, t = row["n1p"], row["n2p"], row["time"]
-        if row["rnd"] < 0.5:
-            link_pred_edges.append((n1,n2,t,1))
-            link_pred_edges.append((n2,n1,t,0))
+        if row["new_channel"] & row["new_edge"] & row["homophily"]:
+            # evaluate a random direction for new homophily edges
+            if row["rnd"] < 0.5:
+                link_pred_edges.append((n1,n2,t,1))
+                link_pred_edges.append((n2,n1,t,0))
+            else:
+                link_pred_edges.append((n2,n1,t,1))
+                link_pred_edges.append((n1,n2,t,0))
         else:
-            link_pred_edges.append((n2,n1,t,1))
+            # no eval for other edges
             link_pred_edges.append((n1,n2,t,0))
+            link_pred_edges.append((n2,n1,t,0))
     return link_pred_edges
 
 def encode_nodes(links_df):
@@ -55,9 +61,33 @@ def encode_nodes(links_df):
     return links_df[["src","trg","user","item","time","eval"]]
     
 def prepare_link_prediction_data(events):
-    # Filter for homophily edges
-    new_channels = events[events["new_channel"] & events["new_edge"] & events["homophily"]]
-    print(new_channels.shape)
     # Random selection of edge direction
-    links_df = pd.DataFrame(select_random_direction_for_eval(new_channels), columns=["src","trg","time","eval"])
+    links_df = pd.DataFrame(select_random_direction_for_eval(events), columns=["src","trg","time","eval"])
     return encode_nodes(links_df)
+
+from alpenglow.evaluation import DcgScore
+
+def calculate_dcg_for_preds(preds, links):
+    preds['dcg'] = DcgScore(preds)
+    hits = preds[~preds["score"].isnull()]
+    links_tmp = links[links["eval"]==1].copy().merge(hits, on=["time","user","item"], how="left")
+    print("preds:", links_tmp["dcg"].fillna(0.0).mean())  
+
+def get_rankings(model, links, exclude_known, pred_file=None):
+    if pred_file == None:
+        rankings = model.run(links, exclude_known=exclude_known, verbose=True)
+    else:
+        rankings = model.run(links, exclude_known=exclude_known, calculate_toplists=links['eval'], verbose=True)
+        preds = model.get_predictions()
+        links_with_score = links.copy()
+        links_with_score["score"] = 1.0
+        preds_joined = preds.join(
+            links_with_score.reset_index().set_index(['index', 'item'])['score'],
+            on=['record_id', 'item'],
+            how="left"
+        )
+        calculate_dcg_for_preds(preds_joined, links)
+        preds_joined.to_csv(pred_file, index=False)
+    rankings['dcg'] = DcgScore(rankings)
+    print(rankings["dcg"].mean())
+    return rankings

@@ -34,7 +34,11 @@ def load_temp_data(json_files, node_keys=["pub_key","last_update"], edge_keys=["
     node_info, edge_info = [], []
     for idx, json_f in enumerate(json_files):
         with open(json_f) as f:
-            tmp_json = json.load(f)
+            try:
+                tmp_json = json.load(f)
+            except json.JSONDecodeError:
+                print("JSONDecodeError: " + json_f)
+                continue
         new_nodes = pd.DataFrame(tmp_json["nodes"])[node_keys]
         new_edges = pd.DataFrame(tmp_json["edges"])[edge_keys]
         new_nodes["snapshot_id"] = idx

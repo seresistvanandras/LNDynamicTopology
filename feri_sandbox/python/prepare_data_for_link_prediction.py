@@ -10,33 +10,12 @@ ph = ParamHelper('../..', 'LinkPrediction', sys.argv)
 # Parameters
 K = ph.get("top_first_days")
 
-# Load temporal data
-graph_files = []
-
-data_dir = "../../LNdata/lncaptures/lngraph/2019/"
-graph_files +=  [data_dir + f for f in sorted(os.listdir(data_dir)) if ".json" in f]
-MIN_TIME = 1549065601-86400 #Saturday, February 2, 2019 12:00:01 AM
-#MAX_TIME = 1552867201 #Monday, March 18, 2019 12:00:01 AM
-
-data_dir = "../../LNdata/"
-#graph_files = [data_dir + f for f in sorted(os.listdir(data_dir)) if ".json" in f]
-graph_files += [data_dir + f for f in sorted(os.listdir(data_dir)) if ".json" in f][5:]
-#MIN_TIME = 1552478399 # Wednesday, March 13, 2019 11:59:59 AM
-MAX_TIME = 1553947199 # Saturday, March 30, 2019 11:59:59 AM
+edges = pd.read_csv("/mnt/idms/fberes/data/bitcoin_ln_research/directed_graphs/directed_temporal_multi_edges_1days.csv")
 
 if K != None:
-    graph_files = graph_files[:K]
-#graph_files
+    edges = edges[edges["snapshot_id"]<K]
 
-EDGE_KEYS = ["node1_pub","node2_pub","last_update","capacity","channel_id",'node1_policy','node2_policy']
-nodes, edges = load_temp_data(graph_files[:-1], edge_keys=EDGE_KEYS)
-print(len(nodes), len(edges))
-
-nodes = nodes[(nodes["last_update"] > MIN_TIME) & (nodes["last_update"] < MAX_TIME)]
-edges = edges[(edges["last_update"] > MIN_TIME) & (edges["last_update"] < MAX_TIME)]
-print(len(nodes), len(edges))
-
-edges = edges.sort_values("last_update").reset_index(drop=True)
+edges = edges.sort_values(["snapshot_id","last_update"]).reset_index(drop=True)
 
 # Extract homophily and new channels
 """

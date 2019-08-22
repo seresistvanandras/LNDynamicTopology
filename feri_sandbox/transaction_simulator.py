@@ -132,7 +132,7 @@ def generate_graph_for_path_search(edges, transactions):
     # initialize transaction graph
     all_edges = pd.concat([edges_tmp, ps_edges])
     # networkx versiom >= 2: from_pandas_edgelist
-    G = nx.from_pandas_edgelist(all_edges, source="src", target="trg", edge_attr=["total_fee","capacity"], create_using=nx.DiGraph())
+    G = nx.from_pandas_edgelist(all_edges, source="src", target="trg", edge_attr=["total_fee"], create_using=nx.DiGraph())
     # delete one-degree nodes
     for n in deleted:
         G.remove_node(n)
