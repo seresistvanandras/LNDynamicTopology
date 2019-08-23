@@ -24,7 +24,7 @@ model_experiment = PopularityExperiment(
     seed=seed,
 )
 
-pred_file = output_dir + "/preds_pop.csv"
+pred_file = None#output_dir + "/preds_pop.csv"
 rankings = get_rankings(model_experiment, links_df, ex_known, pred_file=pred_file)
 rankings.to_csv(output_dir + "/pop.csv")
 

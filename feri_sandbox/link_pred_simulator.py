@@ -19,13 +19,17 @@ def simulate_target_effects(G, transactions, src, targets, weight=None):
                 src_idx = p.index(src)
                 src_revenue = router_fees[src]
                 prev_, next_ = p[src_idx-1], p[src_idx+1]
-                if prev_ in targets and next_ in targets:
-                    target_effect[prev_] += src_revenue / 2.0
-                    target_effect[next_] += src_revenue / 2.0
-                elif prev_ in targets:
-                    target_effect[prev_] += src_revenue
-                elif next_ in targets:
-                    target_effect[next_] += src_revenue
+                prevb, nextb = prev_ in targets, next_ in targets
+                if prevb or nextb:
+                    if nextb and prevb:
+                        target_effect[prev_] += src_revenue / 2.0
+                        target_effect[next_] += src_revenue / 2.0
+                    elif prevb:
+                        target_effect[prev_] += src_revenue
+                    else:
+                        target_effect[next_] += src_revenue
+                else:
+                    continue
             else:
                 continue
         except RuntimeError as re:
@@ -36,24 +40,18 @@ def simulate_target_effects(G, transactions, src, targets, weight=None):
     # it is important to keep the order of the original predictions
     prediction_df["node"] = targets
     prediction_df["score"] = [target_effect.get(trg, 0.0) for trg in targets]
-    #TODO: keep original order if the effect is zero!!!
-    #sorted_x = sorted(target_effect.items(), key=operator.itemgetter(1), reverse=True)
-    #print(sorted_x)
-    #sorted_keys, _ = zip(*sorted_x)
     return list(prediction_df.sort_values("score", ascending=False)["node"])
 
 def get_target_ranks(G, transactions, amount_sat, weight, pred_event_params):
     source_node, target_nodes, true_target, ts = pred_event_params
     G_tmp = G.copy()
-    target_nodes_tmp = []
-    for trg in target_nodes:
-        if G_tmp.has_edge(source_node, trg):
-            print("%i: %s-%s exists" % (ts, source_node, trg))
+    #target_nodes_tmp = []
+    #for trg in target_nodes:
+    #    if G_tmp.has_edge(source_node, trg):
+    #        print("%i: %s-%s exists" % (ts, source_node, trg))
     #        continue
     #    target_nodes_tmp.append(trg)
     target_nodes_tmp = target_nodes
-    #print(len(target_nodes_tmp) / len(target_nodes))
-    # default prediction
     prediction = target_nodes_tmp
     if len(target_nodes_tmp) > 0:
         new_edges = pd.DataFrame([])

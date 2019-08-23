@@ -6,20 +6,11 @@
         "neg_rate": 100,
         "seed": 254938879,
         "top_first_days": 20,
-        "topk": 20,
-        "tx_alpha": null,
-        "tx_drop_disabled": true,
-        "tx_num": 10000
+        "topk": 20
     },
     "description": "Pipeline for link prediction experiments",
     "id": "2",
     "imports": [
-        {
-            "kernel_type": "py3-env",
-            "name": "link_pred_simulator",
-            "path": "feri_sandbox/link_pred_simulator.py",
-            "type": "Simulator"
-        },
         {
             "kernel_type": "py3-env",
             "name": "link_prediction_utils",
@@ -42,17 +33,6 @@
             "path": "feri_sandbox/LinkPredResults.ipynb",
             "pipeline_status": "off",
             "type": "Results"
-        },
-        {
-            "dependencies": [
-                "online_mf"
-            ],
-            "is_clone": "no",
-            "kernel_type": "py3-env",
-            "name": "LinkPredWithSimulation",
-            "path": "feri_sandbox/LinkPredWithSimulation.ipynb",
-            "pipeline_status": "off",
-            "type": "Simulation"
         },
         {
             "is_clone": "no",

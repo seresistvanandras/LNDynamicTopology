@@ -38,7 +38,7 @@ model_experiment = BatchAndOnlineFactorExperiment(
 )
 
 model_id = "bomf_dim%i_lr%0.3f_nr%i" % (dim, l_rate, neg_rate)
-pred_file = output_dir + "/preds_%s.csv" % model_id
+pred_file = None#output_dir + "/preds_%s.csv" % model_id
 rankings = get_rankings(model_experiment, links_df, ex_known, pred_file=pred_file)
 rankings.to_csv(output_dir + "/%s.csv" % model_id)
 
