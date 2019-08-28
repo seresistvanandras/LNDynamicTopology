@@ -15,7 +15,7 @@ def simulate_target_effects(G, transactions, src, targets, weight=None):
             p = nx.shortest_path(G, source=row["source"], target=row["target"] + "_trg", weight=weight)
             # if src is a router node in the transaction
             if src in p[1:-1]:
-                cost, router_fees = process_path(p, row["amount_SAT"], G, weight)
+                cost, router_fees = process_path(p, row["amount_SAT"], G, "total_fee")
                 src_idx = p.index(src)
                 src_revenue = router_fees[src]
                 prev_, next_ = p[src_idx-1], p[src_idx+1]
@@ -61,7 +61,7 @@ def get_target_ranks(G, transactions, amount_sat, weight, pred_event_params):
         new_edges["fee_rate_milli_msat"] = 1.0
         new_edges["total_fee"] = calculate_tx_fee(new_edges, amount_sat)
         tuples = list(zip(new_edges["src"], new_edges["trg"], new_edges["total_fee"]))
-        tuples += list(zip(new_edges["trg"], new_edges["src"], new_edges["total_fee"]))
+        #tuples += list(zip(new_edges["trg"], new_edges["src"], new_edges["total_fee"]))
         #print(G_tmp.number_of_edges())
         G_tmp.add_weighted_edges_from(tuples, weight="total_fee")
         prediction = simulate_target_effects(G_tmp, transactions, source_node, target_nodes, weight=weight)
@@ -109,18 +109,22 @@ def load_graph_snapshots(file_path, ts_upper_bound=1553390858, verbose=False):
     time_boundaries = time_boundaries[:(i+1)]
     return snapshots, time_boundaries
 
-def process_links_for_simulator(links_df, preds, time_boundaries, verbose=False):
+def process_links_for_simulator(links_df, preds, time_boundaries, only_eval=True, verbose=False):
     links_tmp = links_df.copy()
-    links_tmp = links_tmp[links_tmp["eval"]==1]
+    if only_eval:
+        links_tmp = links_tmp[links_tmp["eval"]==1]
     links_tmp["record_id"] = links_tmp.index
-    id_to_pub = dict(zip(links_tmp["user"],links_tmp["src"]))
-    id_to_pub.update(dict(zip(links_tmp["item"],links_tmp["trg"])))
-    print("Number of nodes:", len(id_to_pub))
     # set target node set
-    preds["trg_pub"] = preds["item"].replace(id_to_pub)
-    preds_as_lists = preds.groupby("record_id")["trg_pub"].apply(list).reset_index()
-    preds_as_lists.columns = ["record_id","target_node_set"]
-    links_for_sim = links_tmp[["src","trg","time","record_id"]].merge(preds_as_lists, on="record_id", how="left")
+    if preds is None:
+        links_for_sim = links_tmp[["src","trg","time","eval","record_id"]]
+    else:
+        id_to_pub = dict(zip(links_tmp["user"],links_tmp["src"]))
+        id_to_pub.update(dict(zip(links_tmp["item"],links_tmp["trg"])))
+        print("Number of nodes:", len(id_to_pub))
+        preds["trg_pub"] = preds["item"].replace(id_to_pub)
+        preds_as_lists = preds.groupby("record_id")["trg_pub"].apply(list).reset_index()
+        preds_as_lists.columns = ["record_id","target_node_set"]
+        links_for_sim = links_tmp[["src","trg","time","eval","record_id"]].merge(preds_as_lists, on="record_id", how="left")
     # set time snapshot
     link_snapshots = np.digitize(list(links_for_sim["time"]), time_boundaries)
     links_for_sim["snapshot"] = link_snapshots - 1 # simulate always on the previous graph snapshot
@@ -145,7 +149,9 @@ class SimulatedLinkPredExperiment():
         # model id
         base_model_id = preds_file_path.split("/")[-1].replace("preds_","").replace(".csv","")
         simulator_id = "%isat_k%i_a%s_e%.2f_drop%s" % (tx_fee_sat, tx_num, str(alpha), eps, drop_disabled)
-        self.experiment_id = simulator_id + "-" + base_model_id
+        self.experiment_id = "slink_" + simulator_id + "-" + base_model_id
+        #self.experiment_id = "sp_" + simulator_id + "-" + base_model_id
+        #self.experiment_id = simulator_id + "-" + base_model_id
         # node labels
         node_meta = pd.read_csv(node_meta_file_path)
         self.providers = list(node_meta["pub_key"])

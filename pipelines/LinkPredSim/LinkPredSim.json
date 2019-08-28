@@ -1,6 +1,7 @@
 {
     "config_path": "pipelines/LinkPredSim/LinkPredSim.json",
     "default_config": {
+        "base_model": "time_pop",
         "top_first_days": 20,
         "topk": 20,
         "tx_alpha": null,
