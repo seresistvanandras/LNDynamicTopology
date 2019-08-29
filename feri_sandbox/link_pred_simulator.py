@@ -149,7 +149,8 @@ class SimulatedLinkPredExperiment():
         # model id
         base_model_id = preds_file_path.split("/")[-1].replace("preds_","").replace(".csv","")
         simulator_id = "%isat_k%i_a%s_e%.2f_drop%s" % (tx_fee_sat, tx_num, str(alpha), eps, drop_disabled)
-        self.experiment_id = "slink_" + simulator_id + "-" + base_model_id
+        self.experiment_id = "trial"
+        #self.experiment_id = "slink_" + simulator_id + "-" + base_model_id
         #self.experiment_id = "sp_" + simulator_id + "-" + base_model_id
         #self.experiment_id = simulator_id + "-" + base_model_id
         # node labels
@@ -169,7 +170,8 @@ class SimulatedLinkPredExperiment():
         for snap_id in snapshots_ids:
             print(snap_id)
             snap_edges = self.snapshots[self.snapshots["snapshot_id"]==snap_id]
-            link_events = self.links_for_sim[self.links_for_sim["snapshot"]==snap_id]
+            #link_events = self.links_for_sim[self.links_for_sim["snapshot"]==snap_id]
+            link_events = self.links_for_sim[self.links_for_sim["snapshot"]==snap_id].head(20)
             sim = LinkPredSimulator(snap_edges, self.providers, self.tx_fee_sat, self.tx_num, eps=self.eps, alpha=self.alpha, drop_disabled=self.drop_disabled)
             df = link_events#.head(100)
             ranks = sim.simulate(df,max_threads=max_threads)
@@ -178,3 +180,4 @@ class SimulatedLinkPredExperiment():
             df["base"] = rank_in_list
             df.drop("target_node_set", axis=1, inplace=True)
             df.to_csv("%s/snapshot_%i.csv" % (output_dir, snap_id), index=False)
+        return sim
