@@ -4,7 +4,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import os
-#import copy
+import copy
 
 ### transaction simulator ###
 
@@ -40,9 +40,7 @@ def sample_transactions(node_variables, amount_in_satoshi, K):
 
 def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions=True, cost_prefix="", weight=None):
     G = G_origi.copy()# copy due to forthcoming graph capacity changes!!!
-    capacity_map = init_capacities.copy()
-    #capacity_map = copy.deepcopy(init_capacities)
-    #print(G.number_of_edges(), G.number_of_nodes())
+    capacity_map = copy.deepcopy(init_capacities)#init_capacities.copy()
     shortest_paths = []
     router_fee_tuples = []
     hashed_transactions = {}
@@ -50,6 +48,8 @@ def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions
         p, cost = [], None
         try:
             p = nx.shortest_path(G, source=row["source"], target=row["target"] + "_trg", weight=weight)
+            if row["target"] in p:
+                raise RuntimeError("Loop detected: %s" % row["target"])
             cost, router_fees = process_path(p, row["amount_SAT"], capacity_map, G, weight)
             routers = list(router_fees.keys())
             router_fee_tuples += list(zip([row["transaction_id"]]*len(router_fees),router_fees.keys(),router_fees.values()))
@@ -61,6 +61,7 @@ def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions
         except nx.NetworkXNoPath:
             continue
         except:
+            print(idx)
             print(p)
             raise
         finally:
@@ -69,7 +70,6 @@ def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions
         for node in hashed_transactions:
             hashed_transactions[node] = pd.DataFrame(hashed_transactions[node], columns=transactions.columns)
     all_router_fees = pd.DataFrame(router_fee_tuples, columns=["transaction_id","node","fee"])
-    #print(G.number_of_edges(), G.number_of_nodes())
     return pd.DataFrame(shortest_paths, columns=["transaction_id", cost_prefix+"cost", "length", "path"]), hashed_transactions,  all_router_fees
 
 def process_path(path, amount_in_satoshi, capacity_map, G, weight):
@@ -78,17 +78,17 @@ def process_path(path, amount_in_satoshi, capacity_map, G, weight):
     for i in range(N-2):
         n1, n2 = path[i], path[i+1]
         routers[n2] = G[n1][n2][weight]
-        process_forward_edge(capacity_map, G, amount_in_satoshi, n1, n2)
-        process_backward_edge(capacity_map, G, amount_in_satoshi, n2, n1)
+        _ = process_forward_edge(capacity_map, G, amount_in_satoshi, n1, n2)   
+        _ = process_backward_edge(capacity_map, G, amount_in_satoshi, n2, n1)
     n1, n2 = path[N-2], path[N-1].replace("_trg","")
-    process_forward_edge(capacity_map, G, amount_in_satoshi, n1, n2)
-    process_backward_edge(capacity_map, G, amount_in_satoshi, n2, n1)
+    _ = process_forward_edge(capacity_map, G, amount_in_satoshi, n1, n2)
+    _ = process_backward_edge(capacity_map, G, amount_in_satoshi, n2, n1)
     return np.sum(list(routers.values())), routers
 
 def process_forward_edge(capacity_map, G, amount_in_satoshi, src, trg):
     cap, fee, is_trg_provider, total_cap = capacity_map[(src,trg)]
     if cap < amount_in_satoshi:
-        raise RuntimeError("%i: %s-%s" % (cap,src,trg))
+        raise RuntimeError("forward %i: %s-%s" % (cap,src,trg))
     if cap < 2*amount_in_satoshi: # cannot route more transactions
         G.remove_edge(src, trg)
         if is_trg_provider:
@@ -98,8 +98,6 @@ def process_forward_edge(capacity_map, G, amount_in_satoshi, src, trg):
 def process_backward_edge(capacity_map, G, amount_in_satoshi, src, trg):
     if (src,trg) in capacity_map:
         cap, fee, is_trg_provider, total_cap = capacity_map[(src,trg)]
-        if cap < 0:
-            raise RuntimeError("%i: %s-%s" % (cap,src,trg))
         if cap < amount_in_satoshi: # it can route transactions again
             G.add_weighted_edges_from([(src,trg,fee)], weight="total_fee")
             if is_trg_provider:
@@ -159,7 +157,6 @@ def generate_graph_for_path_search(edges, transactions):
     ps_edges["total_fee"] = 0.0
     ps_edges["fee_base_msat"] = 0.0
     ps_edges["fee_rate_milli_msat"] = 0.0
-    #print(len(edges_tmp),len(ps_edges))
     # initialize transaction graph
     all_edges = pd.concat([edges_tmp, ps_edges])
     # networkx versiom >= 2: from_pandas_edgelist
@@ -186,16 +183,14 @@ def prepare_edges_for_simulation(edges, amount_sat, drop_disabled):
     directed_aggr = grouped.agg({
         "capacity":"sum",
         "total_fee":"mean",
-        #"fee_base_msat":"mean",
-        #"fee_rate_milli_msat":"mean"
     }).reset_index()
     print("Number of edges after aggregation: %i" % len(directed_aggr))
     return directed_aggr
 
-def init_capacities(edges, providers, amount_in_sat):
+def init_capacities(edges, tx_targets, amount_in_sat):
     # init capacity dict
     keys = list(zip(edges["src"], edges["trg"]))
-    is_trg_provider = edges["trg"].apply(lambda x: x in providers)
+    is_trg_provider = edges["trg"].apply(lambda x: x in tx_targets)
     vals = [list(item) for item in zip([None]*len(edges), edges["total_fee"], is_trg_provider, edges["capacity"])]
     current_capacity_map = dict(zip(keys,vals))
     # extract channels
@@ -233,10 +228,9 @@ class TransactionSimulator():
         self.edges = prepare_edges_for_simulation(edges, amount_sat, drop_disabled)
         self.node_variables, self.providers = init_node_params(self.edges, providers, eps, alpha)
         self.transactions = sample_transactions(self.node_variables, amount_sat, k)
-        self.current_capacity_map, edges_with_capacity = init_capacities(self.edges, self.providers, amount_sat)
-        self.G = generate_graph_for_path_search(edges_with_capacity, self.transactions)
-        self.first_edges = edges_with_capacity
-        print("%i transaction were generated." % k)
+        self.current_capacity_map, self.edges_with_capacity = init_capacities(self.edges, set(self.transactions["target"]), amount_sat)
+        self.G = generate_graph_for_path_search(self.edges_with_capacity, self.transactions)
+        print("%i transactions were generated." % k)
     
     def simulate(self, weight=None, with_node_removals=True, max_threads=4):
         print("Using weight='%s'" % weight)

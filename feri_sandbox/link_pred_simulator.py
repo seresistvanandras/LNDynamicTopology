@@ -42,7 +42,7 @@ def simulate_target_effects(G, transactions, src, targets, weight=None):
     prediction_df["score"] = [target_effect.get(trg, 0.0) for trg in targets]
     return list(prediction_df.sort_values("score", ascending=False)["node"])
 
-def get_target_ranks(G, transactions, amount_sat, weight, pred_event_params):
+def get_target_ranks(init_capacities, G, transactions, amount_sat, weight, pred_event_params):
     source_node, target_nodes, true_target, ts = pred_event_params
     G_tmp = G.copy()
     #target_nodes_tmp = []
@@ -53,6 +53,7 @@ def get_target_ranks(G, transactions, amount_sat, weight, pred_event_params):
     #    target_nodes_tmp.append(trg)
     target_nodes_tmp = target_nodes
     prediction = target_nodes_tmp
+    # TODO: I HAVE TO MODIFY THE CAPACITY MAP AS WELL: include new edges in it!!!
     if len(target_nodes_tmp) > 0:
         new_edges = pd.DataFrame([])
         new_edges["trg"] = target_nodes_tmp
@@ -78,13 +79,14 @@ class LinkPredSimulator():
         self.edges = prepare_edges_for_simulation(edges, amount_sat, drop_disabled)
         self.node_variables, self.providers = init_node_params(self.edges, providers, eps, alpha)
         self.transactions = sample_transactions(self.node_variables, amount_sat, k)
-        self.G = generate_graph_for_path_search(self.edges, self.transactions)
-        print("%i transaction were generated." % k)
+        self.current_capacity_map, self.edges_with_capacity = init_capacities(self.edges, set(self.transactions["target"]), amount_sat)
+        self.G = generate_graph_for_path_search(self.edges_with_capacity, self.transactions)
+        print("%i transactions were generated." % k)
     
     def simulate(self, pred_events, weight="total_fee", max_threads=4):
         pred_events_params = list(zip(pred_events["src"], pred_events["target_node_set"], pred_events["trg"], pred_events["time"]))
         if max_threads > 1:
-            f_partial = functools.partial(get_target_ranks, self.G, self.transactions, self.amount_sat, weight)
+            f_partial = functools.partial(get_target_ranks, self.current_capacity_map, self.G, self.transactions, self.amount_sat, weight)
             executor = concurrent.futures.ProcessPoolExecutor(max_threads)
             ranks = list(executor.map(f_partial, pred_events_params))
             executor.shutdown()

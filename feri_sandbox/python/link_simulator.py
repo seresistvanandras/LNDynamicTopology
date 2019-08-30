@@ -26,8 +26,8 @@ experiment = SimulatedLinkPredExperiment(snapshot_fp, links_fp, preds_fp, node_m
 
 experiment.preprocess()
 
-#experiment.run(".", snapshots_ids=[2], max_threads=40)
+experiment.run(".", snapshots_ids=[2], max_threads=40)
 #experiment.run(output_prefix, max_threads=32)
-experiment.run(output_prefix, max_threads=16)
+#experiment.run(output_prefix, max_threads=16)
 
 print("done")
