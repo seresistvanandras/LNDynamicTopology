@@ -16,9 +16,10 @@ def get_src_proba(df, alpha):
     
 def get_src_rayleigh_proba(df):
     s = df["total_capacity"].median()
-    print(s)
+    print("total capacity median: %i" % s)
+    ss = s**2
     x = np.array(df["total_capacity"], dtype="float64")
-    df["src_proba"] = (x/s**2) * np.exp(-np.square(x)/(2.0*s**2))
+    df["src_proba"] = (x/ss) * np.exp(-np.square(x)/(2.0*ss))
     df["src_proba"] = df["src_proba"] / df["src_proba"].sum()
     
 def get_trg_proba(df, eps, providers):
@@ -232,10 +233,12 @@ class TransactionSimulator():
         self.G = generate_graph_for_path_search(self.edges_with_capacity, self.transactions)
         print("%i transactions were generated." % k)
     
-    def simulate(self, weight=None, with_node_removals=True, max_threads=4):
+    def simulate(self, weight=None, with_node_removals=True, max_threads=8):
         print("Using weight='%s'" % weight)
         print("Transactions simulated on original graph STARTED..")
         shortest_paths, hashed_transactions, all_router_fees = get_shortest_paths(self.current_capacity_map, self.G, self.transactions, cost_prefix="original_", weight=weight)
+        success_tx_ids = set(all_router_fees["transaction_id"])
+        self.transactions["success"] = self.transactions["transaction_id"].apply(lambda x: x in success_tx_ids)
         print("Transactions simulated on original graph DONE")
         print("Length distribution of optimal paths:")
         print(shortest_paths["length"].value_counts())
@@ -256,7 +259,7 @@ class TransactionSimulator():
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         total_income = get_total_income_for_routers(self.all_router_fees)
-        total_income.to_csv("%s/router_incomes.csv" % output_dir, index=True)
+        total_income.to_csv("%s/router_incomes.csv" % output_dir, index=False)
         total_fee = get_total_fee_for_sources(self.transactions, self.shortest_paths)
         total_fee.to_csv("%s/source_fees.csv" % output_dir, index=True)
         if len(self.alternative_paths) > 0: 
@@ -267,7 +270,9 @@ class TransactionSimulator():
 ### process results ###
 
 def get_total_income_for_routers(all_router_fees):
-    return all_router_fees.groupby("node")["fee"].sum().sort_values(ascending=False)
+    grouped = all_router_fees.groupby("node")
+    aggr_router_income = grouped.agg({"fee":"sum","transaction_id":"count"}).reset_index().sort_values("fee",ascending=False)
+    return aggr_router_income.rename({"transaction_id":"num_trans"}, axis=1)
 
 def get_total_fee_for_sources(transactions, shortest_paths):
     trans_with_costs = transactions[["transaction_id","source"]].merge(shortest_paths[["transaction_id","original_cost"]], on="transaction_id")
@@ -321,16 +326,17 @@ def merge_with_other_metrics(mean_costs, snapshot_id, weight=None):
 
 def calculate_max_income(n, p_altered, shortest_paths, all_router_fees, visualize=False, min_ratio=0.0):
     trans = p_altered[p_altered["node"] == n]
-    trans = trans.merge(shortest_paths, on="transaction_id", how="left")#'original_cost' column merged
-    trans = trans.merge(all_router_fees, on=["transaction_id","node"], how="left")#'fee' column is merged
+    trans = trans.merge(shortest_paths, on="transaction_id", how="inner")#'original_cost' column merged
+    trans = trans.merge(all_router_fees, on=["transaction_id","node"], how="inner")#'fee' column is merged
     trans["delta_cost"] = trans["cost"] - trans["original_cost"]
     ordered_deltas = trans[["transaction_id","fee","delta_cost"]].sort_values("delta_cost")
     ordered_deltas["delta_cost"] = ordered_deltas["delta_cost"].apply(lambda x: round(x, 2))
-    thresholds = sorted(list(ordered_deltas["delta_cost"].unique()))
+    thresholds = [0.0] + sorted(list(ordered_deltas["delta_cost"].unique()))
     original_income = ordered_deltas["fee"].sum()
     original_num_transactions = len(ordered_deltas)
-    probas, incomes = [], []
-    for th in thresholds:
+    incomes, probas = [original_income], [1.0]
+    # inspect only posiive deltas
+    for th in thresholds[1:]:
         df = ordered_deltas[ordered_deltas["delta_cost"] >= th]
         prob = len(df) / original_num_transactions
         total = df["fee"].sum() + len(df) * th
@@ -344,28 +350,27 @@ def calculate_max_income(n, p_altered, shortest_paths, all_router_fees, visualiz
         ax1.set_title(original_num_transactions)
         ax1.plot(thresholds[:len(incomes)], incomes, 'bx-')
         ax1.set_xscale("log")
-        #ax1.plot(thresholds[:len(incomes)], np.array(incomes)*np.array(probas), 'rx-')
         ax2 = ax1.twinx()
         ax2.plot(thresholds[:len(incomes)], probas, 'gx-')
         ax2.set_xscale("log")
     return thresholds[max_idx], incomes[max_idx], probas[max_idx], original_income, original_num_transactions
 
 def calc_optimal_base_fee(shortest_paths, alternative_paths, all_router_fees):
-    alternative_paths_tmp = alternative_paths.copy()
-    #alternative_paths_tmp["cost"] = alternative_paths["cost"].fillna(25000)
-    p_altered = alternative_paths_tmp[~alternative_paths_tmp["cost"].isnull()]
-    "Path ratio that have alternative routing after removals: %f" % (len(p_altered) / len(alternative_paths_tmp))
-    num_routers = len(alternative_paths_tmp["node"].unique())
+    # drop failed paths
+    valid_sp = shortest_paths[shortest_paths["length"]!=-1]
+    # drop failed paths
+    p_altered = alternative_paths[~alternative_paths["cost"].isnull()]
+    "Path ratio that have alternative routing after removals: %f" % (len(p_altered) / len(alternative_paths))
+    num_routers = len(alternative_paths["node"].unique())
     num_routers_with_alternative_paths = len(p_altered["node"].unique())
     "Node ratio that have alternative routing after removals: %f" % (num_routers_with_alternative_paths / num_routers)
     routers = list(p_altered["node"].unique())
     opt_strategy = []
     for n in tqdm(routers, mininterval=5):
-        opt_delta, opt_income, opt_ratio, origi_income, origi_num_trans = calculate_max_income(n, p_altered, shortest_paths, all_router_fees, visualize=False)
+        opt_delta, opt_income, opt_ratio, origi_income, origi_num_trans = calculate_max_income(n, p_altered, valid_sp, all_router_fees, visualize=False)
         opt_strategy.append((n, opt_delta, opt_ratio, opt_income, origi_income, origi_num_trans))
     opt_fees_df = pd.DataFrame(opt_strategy, columns=["node","opt_delta","opt_traffic","opt_income","origi_income", "origi_num_trans"])
-    opt_fees_df["income_gain"] = ((opt_fees_df["opt_income"] - opt_fees_df["origi_income"]) / opt_fees_df["origi_income"]).replace(np.inf, 100.0)
     opt_fees_df = opt_fees_df.sort_values("origi_income", ascending=False)
     print("Mean fee pricing statistics:")
-    print(opt_fees_df[["opt_delta","opt_traffic","origi_num_trans","income_gain"]].mean())
+    print(opt_fees_df[["opt_delta","opt_traffic","origi_num_trans"]].mean())
     return opt_fees_df, p_altered
