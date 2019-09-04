@@ -1,13 +1,13 @@
 {
     "config_path": "pipelines/LNGraph/LNGraph.json",
     "default_config": {
-        "alpha": 2.0,
-        "amount_sat": 200000,
+        "alpha": null,
+        "amount_sat": 50000,
         "data_dir": "/mnt/idms/fberes/data/bitcoin_ln_research",
         "day_interval": 7,
         "drop_disabled": true,
         "experiment_id": "trial",
-        "num_transactions": 20000,
+        "num_transactions": 5000,
         "snapshot_id": 0,
         "snapshot_ids": [
             0,

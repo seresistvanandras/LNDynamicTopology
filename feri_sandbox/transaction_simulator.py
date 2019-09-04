@@ -275,9 +275,9 @@ def get_total_income_for_routers(all_router_fees):
     return aggr_router_income.rename({"transaction_id":"num_trans"}, axis=1)
 
 def get_total_fee_for_sources(transactions, shortest_paths):
-    trans_with_costs = transactions[["transaction_id","source"]].merge(shortest_paths[["transaction_id","original_cost"]], on="transaction_id")
-    trans_with_costs = trans_with_costs[~trans_with_costs["original_cost"].isnull()]
-    agg_funcs = dict(original_cost='mean', transaction_id='nunique')
+    tmp_sp = shortest_paths[shortest_paths["length"]>0]
+    trans_with_costs = transactions[["transaction_id","source"]].merge(tmp_sp[["transaction_id","original_cost"]], on="transaction_id", how="right")
+    agg_funcs = dict(original_cost='mean', transaction_id='count')
     aggs = trans_with_costs.groupby(by="source")["original_cost"].agg(agg_funcs).rename({"original_cost":"mean_fee","transaction_id":"num_trans"}, axis=1)
     return aggs
 

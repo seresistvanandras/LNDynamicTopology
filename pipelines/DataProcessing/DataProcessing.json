@@ -41,6 +41,14 @@
             "path": "feri_sandbox/LabelScraping.ipynb",
             "pipeline_status": "off",
             "type": "Crawler"
+        },
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "MetaExtractor",
+            "path": "feri_sandbox/MetaExtractor.ipynb",
+            "pipeline_status": "off",
+            "type": "Meta"
         }
     ],
     "parameter_notebooks": [],
