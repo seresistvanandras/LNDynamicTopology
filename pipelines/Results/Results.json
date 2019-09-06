@@ -1,0 +1,20 @@
+{
+    "config_path": "pipelines/Results/Results.json",
+    "description": "Add some custom description for this pipeline!",
+    "id": "4",
+    "imports": [],
+    "name": "Results",
+    "notebooks": [
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "JournalPlots",
+            "path": "feri_sandbox/JournalPlots.ipynb",
+            "pipeline_status": "on",
+            "type": "Visualization"
+        }
+    ],
+    "parameter_notebooks": [],
+    "py_scripts": [],
+    "reports": []
+}

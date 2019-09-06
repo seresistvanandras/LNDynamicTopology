@@ -8,6 +8,7 @@
         "drop_disabled": true,
         "experiment_id": "trial",
         "num_transactions": 5000,
+        "sim_dir": "2019-09-03_15:28:05_50000sat_k5000_aNone_dropFalse",
         "snapshot_id": 0,
         "snapshot_ids": [
             0,
