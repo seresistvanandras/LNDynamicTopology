@@ -16,7 +16,7 @@ day_interval = ph.get("day_interval")
 drop_disabled = ph.get("drop_disabled")
 
 data_dir = ph.get("data_dir")
-output_dir = "%s/simulations/%s/%s" % (data_dir, snapshot_id, experiment_id)
+output_dir = "%s/simulations_%idays/%s/%s" % (data_dir, day_interval, snapshot_id, experiment_id)
 print(output_dir)
 
 if not os.path.exists(output_dir):
@@ -37,8 +37,6 @@ simulator = ts.TransactionSimulator(edges, providers, amount_sat, num_transactio
 transactions = simulator.transactions
 shortest_paths, alternative_paths, all_router_fees = simulator.simulate(weight="total_fee")
 total_income, total_fee = simulator.export(output_dir)
-#harmonic_sums, routing_differences = ts.calculate_node_influence(shortest_paths, alternative_paths)
-#harmonic_sums.reset_index().to_csv(output_file, index=False)
 
 # 4. Stats
 
