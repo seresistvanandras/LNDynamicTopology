@@ -8,14 +8,14 @@ from transaction_simulator import *
 
 ### transaction simulator ###
 
-def simulate_target_effects(G, transactions, src, targets, weight=None):
+def simulate_target_effects(capacity_map, G, transactions, src, targets, weight=None):
     target_effect = dict([(val,0.0) for val in targets])
     for idx, row in transactions.iterrows():
         try:
             p = nx.shortest_path(G, source=row["source"], target=row["target"] + "_trg", weight=weight)
             # if src is a router node in the transaction
-            if src in p[1:-1]:
-                cost, router_fees = process_path(p, row["amount_SAT"], G, "total_fee")
+            cost, router_fees = process_path(p, row["amount_SAT"], capacity_map, G, "total_fee")
+            if src in p[1:-1]:                
                 src_idx = p.index(src)
                 src_revenue = router_fees[src]
                 prev_, next_ = p[src_idx-1], p[src_idx+1]
@@ -43,31 +43,33 @@ def simulate_target_effects(G, transactions, src, targets, weight=None):
     return list(prediction_df.sort_values("score", ascending=False)["node"])
 
 def get_target_ranks(init_capacities, G, transactions, amount_sat, weight, pred_event_params):
-    source_node, target_nodes, true_target, ts = pred_event_params
+    source_node, target_nodes, true_target, ts, cap = pred_event_params
     G_tmp = G.copy()
-    #target_nodes_tmp = []
-    #for trg in target_nodes:
-    #    if G_tmp.has_edge(source_node, trg):
-    #        print("%i: %s-%s exists" % (ts, source_node, trg))
-    #        continue
-    #    target_nodes_tmp.append(trg)
-    target_nodes_tmp = target_nodes
-    prediction = target_nodes_tmp
-    # TODO: I HAVE TO MODIFY THE CAPACITY MAP AS WELL: include new edges in it!!!
-    if len(target_nodes_tmp) > 0:
-        new_edges = pd.DataFrame([])
-        new_edges["trg"] = target_nodes_tmp
-        new_edges["src"] = source_node
-        new_edges["fee_base_msat"] = 1000.0
-        new_edges["fee_rate_milli_msat"] = 1.0
-        new_edges["total_fee"] = calculate_tx_fee(new_edges, amount_sat)
-        tuples = list(zip(new_edges["src"], new_edges["trg"], new_edges["total_fee"]))
-        #tuples += list(zip(new_edges["trg"], new_edges["src"], new_edges["total_fee"]))
-        #print(G_tmp.number_of_edges())
-        G_tmp.add_weighted_edges_from(tuples, weight="total_fee")
-        prediction = simulate_target_effects(G_tmp, transactions, source_node, target_nodes, weight=weight)
+    capacity_map = copy.deepcopy(init_capacities)
+    tx_targets = set(transactions["target"])
+    new_edges = pd.DataFrame([])
+    new_edges["trg"] = target_nodes
+    new_edges["src"] = source_node
+    new_edges["fee_base_msat"] = 1000.0
+    new_edges["fee_rate_milli_msat"] = 1.0
+    new_edges["total_fee"] = calculate_tx_fee(new_edges, amount_sat)
+    new_edges["is_trg_provider"] = [trg in tx_targets for trg in target_nodes]
+    tuples = list(zip(new_edges["src"], new_edges["trg"], new_edges["total_fee"]))
+    # add new edges
+    G_tmp.add_weighted_edges_from(tuples, weight="total_fee")
+    # update capacity map
+    for _, row in new_edges.iterrows():
+        src_, trg_, fee_, is_trg_prov_ = row["src"], row["trg"], row["total_fee"], row["is_trg_provider"]
+        if (src_,trg_) in capacity_map:
+            raise RuntimeError("%s-%s alredy in capacity map!" % (src_,trg_))
+        else:
+            capacity_map[(src_,trg_)] = [cap, fee_, is_trg_prov_, cap]
+        if (trg_,src_) not in capacity_map:
+            print("reverse direction exists!")
+            capacity_map[(trg_,src_)] = [0, fee_, is_trg_prov_, cap]
+    prediction = simulate_target_effects(capacity_map, G_tmp, transactions, source_node, target_nodes, weight=weight)
     sim_based_rank = prediction.index(true_target)+1.0 if true_target in prediction else None
-    rank_in_list = target_nodes_tmp.index(true_target)+1.0 if true_target in target_nodes_tmp else None
+    rank_in_list = target_nodes.index(true_target)+1.0 if true_target in target_nodes else None
     return sim_based_rank, rank_in_list
 
 import functools
@@ -84,14 +86,14 @@ class LinkPredSimulator():
         print("%i transactions were generated." % k)
     
     def simulate(self, pred_events, weight="total_fee", max_threads=4):
-        pred_events_params = list(zip(pred_events["src"], pred_events["target_node_set"], pred_events["trg"], pred_events["time"]))
+        pred_events_params = list(zip(pred_events["src"], pred_events["target_node_set"], pred_events["trg"], pred_events["time"], pred_events["capacity"]))
         if max_threads > 1:
             f_partial = functools.partial(get_target_ranks, self.current_capacity_map, self.G, self.transactions, self.amount_sat, weight)
             executor = concurrent.futures.ProcessPoolExecutor(max_threads)
             ranks = list(executor.map(f_partial, pred_events_params))
             executor.shutdown()
         else:
-            ranks = [get_target_ranks(self.G, self.transactions, self.amount_sat, weight, pe) for pe in pred_events_params]
+            ranks = [get_target_ranks(self.current_capacity_map, self.G, self.transactions, self.amount_sat, weight, pe) for pe in pred_events_params]
         return ranks
     
 ### experiment ###
@@ -126,7 +128,7 @@ def process_links_for_simulator(links_df, preds, time_boundaries, only_eval=True
         preds["trg_pub"] = preds["item"].replace(id_to_pub)
         preds_as_lists = preds.groupby("record_id")["trg_pub"].apply(list).reset_index()
         preds_as_lists.columns = ["record_id","target_node_set"]
-        links_for_sim = links_tmp[["src","trg","time","eval","record_id"]].merge(preds_as_lists, on="record_id", how="left")
+        links_for_sim = links_tmp[["src","trg","capacity","time","eval","record_id"]].merge(preds_as_lists, on="record_id", how="left")
     # set time snapshot
     link_snapshots = np.digitize(list(links_for_sim["time"]), time_boundaries)
     links_for_sim["snapshot"] = link_snapshots - 1 # simulate always on the previous graph snapshot

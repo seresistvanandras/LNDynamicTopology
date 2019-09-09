@@ -41,7 +41,7 @@ def sample_transactions(node_variables, amount_in_satoshi, K):
 
 def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions=True, cost_prefix="", weight=None):
     G = G_origi.copy()# copy due to forthcoming graph capacity changes!!!
-    capacity_map = copy.deepcopy(init_capacities)#init_capacities.copy()
+    capacity_map = copy.deepcopy(init_capacities)
     shortest_paths = []
     router_fee_tuples = []
     hashed_transactions = {}
@@ -51,7 +51,7 @@ def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions
             p = nx.shortest_path(G, source=row["source"], target=row["target"] + "_trg", weight=weight)
             if row["target"] in p:
                 raise RuntimeError("Loop detected: %s" % row["target"])
-            cost, router_fees = process_path(p, row["amount_SAT"], capacity_map, G, weight)
+            cost, router_fees = process_path(p, row["amount_SAT"], capacity_map, G, "total_fee")
             routers = list(router_fees.keys())
             router_fee_tuples += list(zip([row["transaction_id"]]*len(router_fees),router_fees.keys(),router_fees.values()))
             if hash_transactions:

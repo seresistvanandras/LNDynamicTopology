@@ -20,16 +20,7 @@
         }
     ],
     "name": "LinkPredSim",
-    "notebooks": [
-        {
-            "is_clone": "no",
-            "kernel_type": "py3-env",
-            "name": "Experimental",
-            "path": "feri_sandbox/Experimental.ipynb",
-            "pipeline_status": "on",
-            "type": "Trials"
-        }
-    ],
+    "notebooks": [],
     "parameter_notebooks": [
         {
             "kernel_type": "py3-env",

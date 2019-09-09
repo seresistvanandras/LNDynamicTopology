@@ -38,31 +38,31 @@ def select_random_direction_for_eval(new_channels):
     new_channels["rnd"] = np.random.random(size=len(new_channels))
     link_pred_edges = []
     for idx, row in new_channels.iterrows():
-        n1, n2, t = row["n1p"], row["n2p"], row["time"]
+        n1, n2, t, cap = row["n1p"], row["n2p"], row["time"], row["capacity"]
         if row["new_channel"] & row["new_edge"] & row["homophily"]:
             # evaluate a random direction for new homophily edges
             if row["rnd"] < 0.5:
-                link_pred_edges.append((n1,n2,t,1))
-                link_pred_edges.append((n2,n1,t,0))
+                link_pred_edges.append((n1,n2,t,cap,1))
+                link_pred_edges.append((n2,n1,t,cap,0))
             else:
-                link_pred_edges.append((n2,n1,t,1))
-                link_pred_edges.append((n1,n2,t,0))
+                link_pred_edges.append((n2,n1,t,cap,1))
+                link_pred_edges.append((n1,n2,t,cap,0))
         else:
             # no eval for other edges
-            link_pred_edges.append((n1,n2,t,0))
-            link_pred_edges.append((n2,n1,t,0))
-    return link_pred_edges
+            link_pred_edges.append((n1,n2,t,cap,0))
+            link_pred_edges.append((n2,n1,t,cap,0))
+    return pd.DataFrame(link_pred_edges, columns=["src","trg","time","capacity","eval"])
 
 def encode_nodes(links_df):
     nodes = set(links_df["src"]).union(set(links_df["trg"]))
     recoder = dict(zip(nodes,range(len(nodes))))
     links_df["user"] = links_df["src"].apply(lambda x: recoder[x])
     links_df["item"] = links_df["trg"].apply(lambda x: recoder[x])
-    return links_df[["src","trg","user","item","time","eval"]]
+    return links_df[["src","trg","capacity","user","item","time","eval"]]
     
 def prepare_link_prediction_data(events):
     # Random selection of edge direction
-    links_df = pd.DataFrame(select_random_direction_for_eval(events), columns=["src","trg","time","eval"])
+    links_df = select_random_direction_for_eval(events)
     return encode_nodes(links_df)
 
 from alpenglow.evaluation import DcgScore
