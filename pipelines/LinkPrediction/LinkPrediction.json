@@ -23,17 +23,9 @@
         {
             "dependencies": [
                 "batch_online_mf",
-                "batch_online_mf_CLONE_1",
-                "batch_online_mf_CLONE_2",
                 "offline_mf",
-                "offline_mf_CLONE_1",
-                "offline_mf_CLONE_2",
                 "online_mf",
-                "online_mf_CLONE_1",
-                "online_mf_CLONE_2",
-                "popularity",
-                "popularity_CLONE_1",
-                "popularity_CLONE_2"
+                "popularity"
             ],
             "is_clone": "no",
             "kernel_type": "py3-env",
@@ -71,34 +63,6 @@
             "type": "BatchOnlineMF"
         },
         {
-            "config": {
-                "topk": 20
-            },
-            "dependencies": [
-                "prepare_data_for_link_prediction"
-            ],
-            "is_clone": "yes",
-            "kernel_type": "py3-env",
-            "name": "batch_online_mf_CLONE_1",
-            "path": "feri_sandbox/python/batch_online_mf_CLONE_1.py",
-            "pipeline_status": "on",
-            "type": "BatchOnlineMF"
-        },
-        {
-            "config": {
-                "topk": 100
-            },
-            "dependencies": [
-                "prepare_data_for_link_prediction"
-            ],
-            "is_clone": "yes",
-            "kernel_type": "py3-env",
-            "name": "batch_online_mf_CLONE_2",
-            "path": "feri_sandbox/python/batch_online_mf_CLONE_2.py",
-            "pipeline_status": "on",
-            "type": "BatchOnlineMF"
-        },
-        {
             "dependencies": [
                 "prepare_data_for_link_prediction"
             ],
@@ -107,34 +71,6 @@
             "name": "offline_mf",
             "path": "feri_sandbox/python/offline_mf.py",
             "pipeline_status": "off",
-            "type": "OfflineMF"
-        },
-        {
-            "config": {
-                "topk": 20
-            },
-            "dependencies": [
-                "prepare_data_for_link_prediction"
-            ],
-            "is_clone": "yes",
-            "kernel_type": "py3-env",
-            "name": "offline_mf_CLONE_1",
-            "path": "feri_sandbox/python/offline_mf_CLONE_1.py",
-            "pipeline_status": "on",
-            "type": "OfflineMF"
-        },
-        {
-            "config": {
-                "topk": 100
-            },
-            "dependencies": [
-                "prepare_data_for_link_prediction"
-            ],
-            "is_clone": "yes",
-            "kernel_type": "py3-env",
-            "name": "offline_mf_CLONE_2",
-            "path": "feri_sandbox/python/offline_mf_CLONE_2.py",
-            "pipeline_status": "on",
             "type": "OfflineMF"
         },
         {
@@ -149,34 +85,6 @@
             "type": "OnlineMF"
         },
         {
-            "config": {
-                "topk": 20
-            },
-            "dependencies": [
-                "prepare_data_for_link_prediction"
-            ],
-            "is_clone": "yes",
-            "kernel_type": "py3-env",
-            "name": "online_mf_CLONE_1",
-            "path": "feri_sandbox/python/online_mf_CLONE_1.py",
-            "pipeline_status": "on",
-            "type": "OnlineMF"
-        },
-        {
-            "config": {
-                "topk": 100
-            },
-            "dependencies": [
-                "prepare_data_for_link_prediction"
-            ],
-            "is_clone": "yes",
-            "kernel_type": "py3-env",
-            "name": "online_mf_CLONE_2",
-            "path": "feri_sandbox/python/online_mf_CLONE_2.py",
-            "pipeline_status": "on",
-            "type": "OnlineMF"
-        },
-        {
             "dependencies": [
                 "prepare_data_for_link_prediction"
             ],
@@ -185,34 +93,6 @@
             "name": "popularity",
             "path": "feri_sandbox/python/popularity.py",
             "pipeline_status": "off",
-            "type": "PopularityModel"
-        },
-        {
-            "config": {
-                "topk": 20
-            },
-            "dependencies": [
-                "prepare_data_for_link_prediction"
-            ],
-            "is_clone": "yes",
-            "kernel_type": "py3-env",
-            "name": "popularity_CLONE_1",
-            "path": "feri_sandbox/python/popularity_CLONE_1.py",
-            "pipeline_status": "on",
-            "type": "PopularityModel"
-        },
-        {
-            "config": {
-                "topk": 100
-            },
-            "dependencies": [
-                "prepare_data_for_link_prediction"
-            ],
-            "is_clone": "yes",
-            "kernel_type": "py3-env",
-            "name": "popularity_CLONE_2",
-            "path": "feri_sandbox/python/popularity_CLONE_2.py",
-            "pipeline_status": "on",
             "type": "PopularityModel"
         },
         {

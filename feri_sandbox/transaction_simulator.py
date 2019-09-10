@@ -159,9 +159,9 @@ def generate_graph_for_path_search(edges, transactions):
     ps_edges["fee_base_msat"] = 0.0
     ps_edges["fee_rate_milli_msat"] = 0.0
     # initialize transaction graph
-    all_edges = pd.concat([edges_tmp, ps_edges])
+    all_edges = pd.concat([edges_tmp, ps_edges], sort=False)
     # networkx versiom >= 2: from_pandas_edgelist
-    G = nx.from_pandas_edgelist(all_edges, source="src", target="trg", edge_attr=["total_fee"], create_using=nx.DiGraph())
+    G = nx.from_pandas_edgelist(all_edges, source="src", target="trg", edge_attr=["total_fee","capacity"], create_using=nx.DiGraph())
     return G
 
 def calculate_tx_fee(df, amount_sat, epsilon=10**-9):
