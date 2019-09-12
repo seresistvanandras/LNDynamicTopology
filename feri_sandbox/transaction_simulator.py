@@ -51,7 +51,7 @@ def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions
             p = nx.shortest_path(G, source=row["source"], target=row["target"] + "_trg", weight=weight)
             if row["target"] in p:
                 raise RuntimeError("Loop detected: %s" % row["target"])
-            cost, router_fees = process_path(p, row["amount_SAT"], capacity_map, G, "total_fee")
+            cost, router_fees, _ = process_path(p, row["amount_SAT"], capacity_map, G,  "total_fee")
             routers = list(router_fees.keys())
             router_fee_tuples += list(zip([row["transaction_id"]]*len(router_fees),router_fees.keys(),router_fees.values()))
             if hash_transactions:
@@ -62,8 +62,6 @@ def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions
         except nx.NetworkXNoPath:
             continue
         except:
-            print(idx)
-            print(p)
             raise
         finally:
             shortest_paths.append((row["transaction_id"], cost, len(p)-1, p))
@@ -75,26 +73,34 @@ def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions
 
 def process_path(path, amount_in_satoshi, capacity_map, G, weight):
     routers = {}
+    depletions = []
     N = len(path)
     for i in range(N-2):
         n1, n2 = path[i], path[i+1]
         routers[n2] = G[n1][n2][weight]
-        _ = process_forward_edge(capacity_map, G, amount_in_satoshi, n1, n2)   
-        _ = process_backward_edge(capacity_map, G, amount_in_satoshi, n2, n1)
+        n2_removed = process_forward_edge(capacity_map, G, amount_in_satoshi, n1, n2)
+        if n2_removed:
+            depletions.append(n2)
+        process_backward_edge(capacity_map, G, amount_in_satoshi, n2, n1)
     n1, n2 = path[N-2], path[N-1].replace("_trg","")
-    _ = process_forward_edge(capacity_map, G, amount_in_satoshi, n1, n2)
-    _ = process_backward_edge(capacity_map, G, amount_in_satoshi, n2, n1)
-    return np.sum(list(routers.values())), routers
+    n2_removed = process_forward_edge(capacity_map, G, amount_in_satoshi, n1, n2)
+    if n2_removed:
+        depletions.append(n2)
+    process_backward_edge(capacity_map, G, amount_in_satoshi, n2, n1)
+    return np.sum(list(routers.values())), routers, depletions
 
 def process_forward_edge(capacity_map, G, amount_in_satoshi, src, trg):
+    removed = False
     cap, fee, is_trg_provider, total_cap = capacity_map[(src,trg)]
     if cap < amount_in_satoshi:
         raise RuntimeError("forward %i: %s-%s" % (cap,src,trg))
     if cap < 2*amount_in_satoshi: # cannot route more transactions
+        removed = True
         G.remove_edge(src, trg)
         if is_trg_provider:
             G.remove_edge(src, trg+'_trg')
     capacity_map[(src,trg)] = [cap-amount_in_satoshi, fee, is_trg_provider, total_cap]
+    return removed
     
 def process_backward_edge(capacity_map, G, amount_in_satoshi, src, trg):
     if (src,trg) in capacity_map:

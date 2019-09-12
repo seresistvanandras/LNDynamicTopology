@@ -10,48 +10,45 @@ from transaction_simulator import *
 
 def simulate_target_effects(capacity_map, G, transactions, src, targets, weight=None):
     target_effect = dict([(val,0.0) for val in targets])
+    total_depletions = dict()
+    router_fee_tuples = []
     for idx, row in transactions.iterrows():
         try:
             p = nx.shortest_path(G, source=row["source"], target=row["target"] + "_trg", weight=weight)
             # if src is a router node in the transaction
-            cost, router_fees = process_path(p, row["amount_SAT"], capacity_map, G, "total_fee")
+            cost, router_fees, depletions = process_path(p, row["amount_SAT"], capacity_map, G,  "total_fee")
+            for dep_node in depletions:
+                total_depletions[dep_node] = total_depletions.get(dep_node, 0) + 1
+            router_fee_tuples += list(zip([row["transaction_id"]]*len(router_fees),router_fees.keys(),router_fees.values()))
             if src in p[1:-1]:
                 src_idx = p.index(src)
                 src_revenue = router_fees[src]
                 next_ = p[src_idx+1].replace("_trg","")
                 if next_ in targets:
                     target_effect[next_] += src_revenue
-                #prev_, next_ = p[src_idx-1], p[src_idx+1]
-                #prevb, nextb = prev_ in targets, next_ in targets
-                #if prevb or nextb:
-                #    if nextb and prevb:
-                #        target_effect[prev_] += src_revenue / 2.0
-                #        target_effect[next_] += src_revenue / 2.0
-                #    elif prevb:
-                #        target_effect[prev_] += src_revenue
-                #    else:
-                #        target_effect[next_] += src_revenue
-                #else:
-                #    continue
             else:
                 continue
-        except RuntimeError as re:
-            raise re
+        except nx.NetworkXNoPath:
+            continue
         except:
-             continue
-    in_degs = dict(G.in_degree(nbunch=targets))
+            print(idx)
+            print(p)
+            raise
+    router_info_df = pd.DataFrame(router_fee_tuples, columns=["transaction_id","router","income"])
+    router_traffic = dict(router_info_df["router"].value_counts())
+    router_income = dict(router_info_df.groupby("router")["income"].sum())
+    #in_degs = dict(G.in_degree(nbunch=targets))
     prediction_df = pd.DataFrame()
     # it is important to keep the order of the original predictions
     prediction_df["item"] = targets
-    prediction_df["prediction"] = [target_effect.get(trg, 0.0) for trg in targets]
-    prediction_df["in_degree"] = [in_degs[trg] for trg in targets]
-    #return list(prediction_df.sort_values("prediction", ascending=False)["item"])
-    return prediction_df.sort_values("prediction", ascending=False)
+    prediction_df["opt_income"] = [target_effect.get(trg, 0.0) for trg in targets]
+    #prediction_df["no_inbound_cap"] = [in_degs[trg] for trg in targets]
+    prediction_df["inbound_depletions"] = [total_depletions.get(trg, 0) for trg in targets]
+    prediction_df["global_traffic"] = [router_traffic.get(trg, 0) for trg in targets]
+    prediction_df["global_income"] = [router_income.get(trg, 0.0) for trg in targets]
+    return prediction_df
 
-def get_target_ranks(init_capacities, G, transactions, amount_sat, weight, pred_event_params):
-    rec_id, source_node, target_nodes, true_target, ts, cap = pred_event_params
-    # extract possible prediction set
-    top_k = len(target_nodes)
+def get_possible_targets(G, source_node):
     NN = set(G.nodes())
     N = NN.copy()
     for n in NN:
@@ -63,51 +60,68 @@ def get_target_ranks(init_capacities, G, transactions, amount_sat, weight, pred_
         possible_targets.remove(source_node)
     else:
         possible_targets = N
-    possible_degrees = G.degree(nbunch=possible_targets)
-    possible_capacities = G.degree(nbunch=possible_targets, weight="capacity")
-    target_nodes = list(pd.DataFrame(possible_degrees, columns=["node","degree"]).sort_values("degree", ascending=False)["node"])
-    with_top_caps = list(pd.DataFrame(possible_capacities, columns=["node","degree"]).sort_values("degree", ascending=False)["node"])[:top_k]
-    # do NOT simulate with capacity below amount!
-    if cap >= amount_sat:
-        capacity_map = copy.deepcopy(init_capacities)
-        G_tmp = G.copy()
-        tx_targets = set(transactions["target"])
-        default_fee = calculate_tx_fee(pd.Series({"fee_base_msat":1000.0,"fee_rate_milli_msat":1.0}), amount_sat)
-        new_edges, final_targets = [], []
-        for trg in possible_targets:
-            if (source_node,trg) in capacity_map or (trg, source_node) in capacity_map:
-                continue
-            else:
-                final_targets.append(trg)
+    degrees = G.degree(nbunch=possible_targets)
+    capacities = G.degree(nbunch=possible_targets, weight="capacity")
+    target_nodes = list(pd.DataFrame(degrees, columns=["node","degree"]).sort_values("degree", ascending=False)["node"])
+    return target_nodes, degrees, capacities
+
+def augment_capacity_map(init_capacities, G, transactions, valid_cap, source_node, target_nodes, cap, amount_sat):
+    capacity_map = copy.deepcopy(init_capacities)
+    G_tmp = G.copy()
+    # create possible targets
+    tx_targets = set(transactions["target"])
+    default_fee = calculate_tx_fee(pd.Series({"fee_base_msat":1000.0,"fee_rate_milli_msat":1.0}), amount_sat)
+    new_edges, final_targets = [], []
+    for trg in target_nodes:
+        if (source_node,trg) in capacity_map or (trg, source_node) in capacity_map:
+            continue
+        else:
+            final_targets.append(trg)
+            if valid_cap:
                 is_trg_prov = trg in tx_targets
                 # update capacity map
-                capacity_map[(source_node,trg)] = [cap, default_fee, is_trg_prov, cap]
-                capacity_map[(trg,source_node)] = [0, default_fee, is_trg_prov, cap]
-                # handle additional edges
+                capacity_map[(source_node,trg)] = [cap, default_fee, is_trg_prov, cap]            
+                capacity_map[(trg,source_node)] = [0, default_fee, is_trg_prov, cap]                 # handle additional edges
                 new_edges.append((source_node, trg, default_fee))
                 if is_trg_prov:
-                    new_edges.append((source_node, str(trg)+"_", 0.0))
+                    new_edges.append((source_node, str(trg)+"_trg", 0.0))
+    if valid_cap:
         G_tmp.add_weighted_edges_from(new_edges, weight="total_fee")
-        prediction_with_scores = simulate_target_effects(capacity_map, G_tmp, transactions, source_node, final_targets, weight=weight)
-        full_cap_nodes = list(prediction_with_scores.sort_values("in_degree",ascending=True)["item"])[:top_k]
-        prediction_with_scores = prediction_with_scores.head(top_k)
+    return capacity_map, G_tmp, final_targets
+
+def get_target_ranks(init_capacities, G, transactions, amount_sat, weight, pred_event_params):
+    rec_id, source_node, target_nodes, true_target, ts, cap = pred_event_params
+    valid_cap = (cap >= amount_sat)
+    # extract possible prediction set
+    top_k = len(target_nodes)
+    target_nodes, degrees, capacities = get_possible_targets(G, source_node)
+    capacity_map, G_tmp, final_targets = augment_capacity_map(init_capacities, G, transactions, valid_cap, source_node,  target_nodes, cap, amount_sat)
+    predictions = simulate_target_effects(capacity_map, G_tmp, transactions, source_node, final_targets, weight=weight)
+    predictions["record_id"] = rec_id
+    predictions["time"] = ts
+    predictions["user"] = source_node
+    predictions["high_degree"] = predictions["item"].apply(lambda x: degrees[x])
+    predictions["high_cap"] = predictions["item"].apply(lambda x: capacities[x])
+    pred_cols = ["opt_income","global_traffic","global_income","inbound_depletions","high_degree","high_cap"]
+    pred_ranks = predictions[pred_cols].rank(method="first", ascending=False)
+    pred_cols = ["rank_"+col for col in pred_cols]
+    pred_ranks.columns = pred_cols
+    predictions = pd.concat([predictions,pred_ranks], axis=1)
+    #predictions["rank_no_inbound_cap"] = predictions["no_inbound_cap"].rank(method="first", ascending=True)
+    #pred_cols.append("rank_no_inbound_cap")
+    if true_target in final_targets:
+        all_ranks = list(predictions[predictions["item"]==true_target][pred_cols].values[0])
+        ranks = [r if r <= top_k else None for r in all_ranks]
+    elif true_target in set(G.nodes()):
+        raise RuntimeError("%s true target is part of existing channel!" % true_target)
     else:
-        prediction_with_scores = pd.DataFrame()
-        prediction_with_scores["item"] = target_nodes[:top_k]
-        prediction_with_scores["prediction"] = None
-        in_degs = G.in_degree(nbunch=possible_targets)
-        full_cap_nodes = list(pd.DataFrame(in_degs, columns=["node","degree"]).sort_values("degree", ascending=True)["node"])[:top_k]
-    prediction_with_scores["record_id"] = rec_id
-    prediction_with_scores["time"] = ts
-    prediction_with_scores["user"] = source_node
-    prediction_with_scores["rank"] = np.array(range(len(prediction_with_scores))) + 1.0
-    prediction = list(prediction_with_scores["item"])
-    target_nodes = target_nodes[:top_k]
-    rank1 = prediction.index(true_target)+1.0 if true_target in prediction else None
-    rank2 = target_nodes.index(true_target)+1.0 if true_target in target_nodes else None
-    rank3 = with_top_caps.index(true_target)+1.0 if true_target in with_top_caps else None
-    rank4 = full_cap_nodes.index(true_target)+1.0 if true_target in full_cap_nodes else None
-    return rank1, rank2, rank3, rank4, prediction_with_scores[["record_id","user","item","rank","prediction"]]
+        ranks = [None] * len(pred_cols)
+    pred_toplists = []
+    for col in pred_cols:
+        feat = col.replace("rank_","")
+        top_k_preds = predictions[predictions[col]<=top_k][["record_id","time","user","item",feat,col]]
+        pred_toplists.append(top_k_preds.rename({col:"rank",feat:"prediction"}, axis=1).sort_values("rank"))
+    return ranks, pred_toplists
 
 import functools
 import concurrent.futures
@@ -210,17 +224,22 @@ class SimulatedLinkPredExperiment():
             print(snap_id)
             snap_edges = self.snapshots[self.snapshots["snapshot_id"]==snap_id]
             link_events = self.links_for_sim[self.links_for_sim["snapshot"]==snap_id]
-            #link_events = self.links_for_sim[self.links_for_sim["snapshot"]==snap_id].head(50)
+            #link_events = self.links_for_sim[self.links_for_sim["snapshot"]==snap_id].head(40)
             sim = LinkPredSimulator(snap_edges, self.providers, self.tx_fee_sat, self.tx_num, eps=self.eps, alpha=self.alpha, drop_disabled=self.drop_disabled)
             df = link_events
-            ranks = sim.simulate(df,max_threads=max_threads)
-            rank1, rank2, rank3, rank4, prediction_parts = zip(*ranks)
-            df["rank1"] = rank1
-            df["rank2"] = rank2
-            df["rank3"] = rank3
-            df["rank4"] = rank4
+            pred_cols = ["opt_income","global_traffic","global_income","inbound_depletions","high_degree","high_cap"]
+            result = sim.simulate(df,max_threads=max_threads)
+            ranks, preds = zip(*result)
+            ranks_df = pd.DataFrame(list(ranks), columns=pred_cols)
+            df = pd.DataFrame(np.concatenate([df.values,ranks_df.values], axis=1), columns=list(df.columns)+pred_cols)
             df.drop("target_node_set", axis=1, inplace=True)
-            df.to_csv("%s/snapshot_%i.csv" % (output_dir, snap_id), index=False)
-            predictions = pd.concat(prediction_parts, sort=False)
-            predictions.to_csv("%s/preds_%i.csv" % (output_dir, snap_id), index=False)
+            df[["record_id","src","trg","time","capacity","eval","snapshot"]+pred_cols].to_csv("%s/snapshot_%i.csv" % (output_dir, snap_id), index=False)
+            predictions = dict()
+            for col in pred_cols:
+                predictions[col] = []
+            for event_preds in preds:
+                for idx, col in enumerate(pred_cols):
+                    predictions[col].append(event_preds[idx])
+            for col in pred_cols:
+                pd.concat(predictions[col], ignore_index=True).to_csv("%s/preds_%s_%i.csv" % (output_dir, col, snap_id), index=False)
         return sim
