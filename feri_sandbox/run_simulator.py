@@ -35,14 +35,14 @@ edges = snapshots[snapshots["snapshot_id"]==snapshot_id]
 
 simulator = ts.TransactionSimulator(edges, providers, amount_sat, num_transactions, alpha=alpha, drop_disabled=drop_disabled)
 transactions = simulator.transactions
-shortest_paths, alternative_paths, all_router_fees = simulator.simulate(weight="total_fee")
+shortest_paths, alternative_paths, all_router_fees = simulator.simulate(weight="total_fee", with_node_removals=False)
 total_income, total_fee = simulator.export(output_dir)
 
 # 4. Stats
 
-print("Total income:", total_income.sum())
+#print("Total income:", total_income.sum())
 
 # 5. Analyze optimal routing fee for nodes
-opt_fees_df, p_altered = ts.calc_optimal_base_fee(shortest_paths, alternative_paths, all_router_fees)
-opt_fees_df.to_csv("%s/opt_fees.csv" % output_dir, index=False)
-print("done")
+#opt_fees_df, p_altered = ts.calc_optimal_base_fee(shortest_paths, alternative_paths, all_router_fees)
+#opt_fees_df.to_csv("%s/opt_fees.csv" % output_dir, index=False)
+#print("done")

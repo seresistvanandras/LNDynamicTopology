@@ -3,8 +3,7 @@ import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-import os
-import copy
+import os, copy, json
 
 ### transaction simulator ###
 
@@ -43,6 +42,7 @@ def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions
     G = G_origi.copy()# copy due to forthcoming graph capacity changes!!!
     capacity_map = copy.deepcopy(init_capacities)
     shortest_paths = []
+    total_depletions = dict()
     router_fee_tuples = []
     hashed_transactions = {}
     for idx, row in transactions.iterrows():
@@ -51,7 +51,9 @@ def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions
             p = nx.shortest_path(G, source=row["source"], target=row["target"] + "_trg", weight=weight)
             if row["target"] in p:
                 raise RuntimeError("Loop detected: %s" % row["target"])
-            cost, router_fees, _ = process_path(p, row["amount_SAT"], capacity_map, G,  "total_fee")
+            cost, router_fees, depletions = process_path(p, row["amount_SAT"], capacity_map, G,  "total_fee")
+            for dep_node in depletions:
+                total_depletions[dep_node] = total_depletions.get(dep_node, 0) + 1
             routers = list(router_fees.keys())
             router_fee_tuples += list(zip([row["transaction_id"]]*len(router_fees),router_fees.keys(),router_fees.values()))
             if hash_transactions:
@@ -69,7 +71,7 @@ def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions
         for node in hashed_transactions:
             hashed_transactions[node] = pd.DataFrame(hashed_transactions[node], columns=transactions.columns)
     all_router_fees = pd.DataFrame(router_fee_tuples, columns=["transaction_id","node","fee"])
-    return pd.DataFrame(shortest_paths, columns=["transaction_id", cost_prefix+"cost", "length", "path"]), hashed_transactions,  all_router_fees
+    return pd.DataFrame(shortest_paths, columns=["transaction_id", cost_prefix+"cost", "length", "path"]), hashed_transactions,  all_router_fees, total_depletions
 
 def process_path(path, amount_in_satoshi, capacity_map, G, weight):
     routers = {}
@@ -117,7 +119,7 @@ def shortest_paths_with_exclusion(capacity_map, G, cost_prefix, weight, hash_buc
     H.remove_node(node)
     if node + "_trg" in G.nodes():
         H.remove_node(node + "_trg") # delete node copy as well
-    new_paths, _, _ = get_shortest_paths(capacity_map, H, bucket_transactions,  hash_transactions=False, cost_prefix=cost_prefix, weight=weight)
+    new_paths, _, _, _ = get_shortest_paths(capacity_map, H, bucket_transactions,  hash_transactions=False, cost_prefix=cost_prefix, weight=weight)
     new_paths["node"] = node
     return new_paths
 
@@ -176,9 +178,18 @@ def calculate_tx_fee(df, amount_sat, epsilon=10**-9):
     # second part: milli_msat == 10^-6 sat : fee_rate_milli_msat -> fee_rate_sat
     return epsilon + df["fee_base_msat"] / 1000.0 + amount_sat * df["fee_rate_milli_msat"] / 10.0**6
 
-def prepare_edges_for_simulation(edges, amount_sat, drop_disabled):
+def prepare_edges_for_simulation(edges, amount_sat, drop_disabled, time_window=None, ts_upper_bound=1553390858):
     # remove edges with capacity below threshold
+    E = len(edges)
     tmp_edges = edges[edges["capacity"] > amount_sat]
+    tmp_edges = tmp_edges[tmp_edges["last_update"] < ts_upper_bound]
+    print("Number of deleted directed channels after capacity filter:", E - len(tmp_edges))
+    # remove old channels
+    if time_window != None:
+        E = len(tmp_edges)
+        ts_lower_bound = tmp_edges["last_update"].max() - time_window
+        tmp_edges = tmp_edges[tmp_edges["last_update"] >= ts_lower_bound]
+        print("Number of deleted directed channels after recency filter:", E - len(tmp_edges))
     # remove disabled edges
     if drop_disabled:
         tmp_edges = tmp_edges[~tmp_edges["disabled"]]
@@ -231,8 +242,16 @@ def populate_capacities(channels, capacity_map, amount_in_sat):
     return pd.DataFrame(edge_records, columns=["src","trg","capacity","total_fee"])
 
 class TransactionSimulator():
-    def __init__(self, edges, providers, amount_sat, k, eps=0.05, alpha=2.0, drop_disabled=True):
-        self.edges = prepare_edges_for_simulation(edges, amount_sat, drop_disabled)
+    def __init__(self, edges, providers, amount_sat, k, eps=0.05, alpha=2.0, drop_disabled=True, time_window=None):
+        self.params = {
+            "amount":amount_sat,
+            "count":k,
+            "epsilon":eps,
+            "alpha":alpha,
+            "drop":drop_disabled,
+            "time_window":time_window
+        }
+        self.edges = prepare_edges_for_simulation(edges, amount_sat, drop_disabled, time_window)
         self.node_variables, self.providers = init_node_params(self.edges, providers, eps, alpha)
         self.transactions = sample_transactions(self.node_variables, amount_sat, k)
         self.current_capacity_map, self.edges_with_capacity = init_capacities(self.edges, set(self.transactions["target"]), amount_sat)
@@ -242,10 +261,12 @@ class TransactionSimulator():
     def simulate(self, weight=None, with_node_removals=True, max_threads=8):
         print("Using weight='%s'" % weight)
         print("Transactions simulated on original graph STARTED..")
-        shortest_paths, hashed_transactions, all_router_fees = get_shortest_paths(self.current_capacity_map, self.G, self.transactions, cost_prefix="original_", weight=weight)
+        shortest_paths, hashed_transactions, all_router_fees, _ = get_shortest_paths(self.current_capacity_map, self.G, self.transactions, cost_prefix="original_", weight=weight)
         success_tx_ids = set(all_router_fees["transaction_id"])
         self.transactions["success"] = self.transactions["transaction_id"].apply(lambda x: x in success_tx_ids)
         print("Transactions simulated on original graph DONE")
+        print("Transaction succes rate:")
+        print(self.transactions["success"].value_counts() / len(self.transactions))
         print("Length distribution of optimal paths:")
         print(shortest_paths["length"].value_counts())
         print("Transactions simulated with node removals STARTED..")
@@ -264,6 +285,10 @@ class TransactionSimulator():
     def export(self, output_dir):
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
+        with open('%s/params.json' % output_dir, 'w') as fp:
+            json.dump(self.params, fp)
+        length_distrib = self.shortest_paths["length"].value_counts()
+        length_distrib.to_csv("%s/lengths_distrib.csv" % output_dir)
         total_income = get_total_income_for_routers(self.all_router_fees)
         total_income.to_csv("%s/router_incomes.csv" % output_dir, index=False)
         total_fee = get_total_fee_for_sources(self.transactions, self.shortest_paths)

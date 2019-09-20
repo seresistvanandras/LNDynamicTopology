@@ -22,7 +22,7 @@ tx_num = ph.get("tx_num")
 tx_alpha = ph.get("tx_alpha")
 tx_drop_disabled = ph.get("tx_drop_disabled")
 
-experiment = SimulatedLinkPredExperiment(snapshot_fp, links_fp, preds_fp, node_meta_fp, tx_fee_sat, tx_num, alpha=tx_alpha, drop_disabled=tx_drop_disabled)
+experiment = SimulatedLinkPredExperiment(top_k, snapshot_fp, links_fp, preds_fp, node_meta_fp, tx_fee_sat, tx_num, alpha=tx_alpha, drop_disabled=tx_drop_disabled)
 
 experiment.preprocess()
 

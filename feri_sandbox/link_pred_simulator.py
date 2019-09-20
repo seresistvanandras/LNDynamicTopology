@@ -10,16 +10,11 @@ from transaction_simulator import *
 
 def simulate_target_effects(capacity_map, G, transactions, src, targets, weight=None):
     target_effect = dict([(val,0.0) for val in targets])
-    total_depletions = dict()
-    router_fee_tuples = []
     for idx, row in transactions.iterrows():
         try:
             p = nx.shortest_path(G, source=row["source"], target=row["target"] + "_trg", weight=weight)
             # if src is a router node in the transaction
-            cost, router_fees, depletions = process_path(p, row["amount_SAT"], capacity_map, G,  "total_fee")
-            for dep_node in depletions:
-                total_depletions[dep_node] = total_depletions.get(dep_node, 0) + 1
-            router_fee_tuples += list(zip([row["transaction_id"]]*len(router_fees),router_fees.keys(),router_fees.values()))
+            cost, router_fees, _ = process_path(p, row["amount_SAT"], capacity_map, G,  "total_fee")
             if src in p[1:-1]:
                 src_idx = p.index(src)
                 src_revenue = router_fees[src]
@@ -34,18 +29,9 @@ def simulate_target_effects(capacity_map, G, transactions, src, targets, weight=
             print(idx)
             print(p)
             raise
-    router_info_df = pd.DataFrame(router_fee_tuples, columns=["transaction_id","router","income"])
-    router_traffic = dict(router_info_df["router"].value_counts())
-    router_income = dict(router_info_df.groupby("router")["income"].sum())
-    #in_degs = dict(G.in_degree(nbunch=targets))
     prediction_df = pd.DataFrame()
-    # it is important to keep the order of the original predictions
     prediction_df["item"] = targets
     prediction_df["opt_income"] = [target_effect.get(trg, 0.0) for trg in targets]
-    #prediction_df["no_inbound_cap"] = [in_degs[trg] for trg in targets]
-    prediction_df["inbound_depletions"] = [total_depletions.get(trg, 0) for trg in targets]
-    prediction_df["global_traffic"] = [router_traffic.get(trg, 0) for trg in targets]
-    prediction_df["global_income"] = [router_income.get(trg, 0.0) for trg in targets]
     return prediction_df
 
 def get_possible_targets(G, source_node):
@@ -89,14 +75,20 @@ def augment_capacity_map(init_capacities, G, transactions, valid_cap, source_nod
         G_tmp.add_weighted_edges_from(new_edges, weight="total_fee")
     return capacity_map, G_tmp, final_targets
 
-def get_target_ranks(init_capacities, G, transactions, amount_sat, weight, pred_event_params):
-    rec_id, source_node, target_nodes, true_target, ts, cap = pred_event_params
+def get_target_ranks(total_depletions, router_traffic, router_income, init_capacities, G, transactions, amount_sat, weight, pred_event_params):
+    rec_id, source_node, base_model_predictions, true_target, ts, cap = pred_event_params
     valid_cap = (cap >= amount_sat)
     # extract possible prediction set
-    top_k = len(target_nodes)
+    top_k = int(base_model_predictions)
+    #top_k = len(base_model_predictions)
     target_nodes, degrees, capacities = get_possible_targets(G, source_node)
     capacity_map, G_tmp, final_targets = augment_capacity_map(init_capacities, G, transactions, valid_cap, source_node,  target_nodes, cap, amount_sat)
+    # execute all predictions
     predictions = simulate_target_effects(capacity_map, G_tmp, transactions, source_node, final_targets, weight=weight)
+    predictions["inbound_depletions"] = [total_depletions.get(trg, 0) for trg in final_targets]
+    predictions["global_traffic"] = [router_traffic.get(trg, 0) for trg in final_targets]
+    predictions["global_income"] = [router_income.get(trg, 0.0) for trg in final_targets]
+    # fill with meta info
     predictions["record_id"] = rec_id
     predictions["time"] = ts
     predictions["user"] = source_node
@@ -107,13 +99,13 @@ def get_target_ranks(init_capacities, G, transactions, amount_sat, weight, pred_
     pred_cols = ["rank_"+col for col in pred_cols]
     pred_ranks.columns = pred_cols
     predictions = pd.concat([predictions,pred_ranks], axis=1)
-    #predictions["rank_no_inbound_cap"] = predictions["no_inbound_cap"].rank(method="first", ascending=True)
-    #pred_cols.append("rank_no_inbound_cap")
     if true_target in final_targets:
         all_ranks = list(predictions[predictions["item"]==true_target][pred_cols].values[0])
         ranks = [r if r <= top_k else None for r in all_ranks]
     elif true_target in set(G.nodes()):
-        raise RuntimeError("%s true target is part of existing channel!" % true_target)
+        ranks = [None] * len(pred_cols)
+        print("%s true target is part of existing channel!" % true_target)
+        #raise RuntimeError("%s true target is part of existing channel!" % true_target)
     else:
         ranks = [None] * len(pred_cols)
     pred_toplists = []
@@ -137,14 +129,20 @@ class LinkPredSimulator():
         print("%i transactions were generated." % k)
     
     def simulate(self, pred_events, weight="total_fee", max_threads=4):
+        # preparation
+        _, _, router_info_df, total_depletions = get_shortest_paths(self.current_capacity_map, self.G, self.transactions, hash_transactions=False, cost_prefix="", weight=weight)
+        router_traffic = dict(router_info_df["node"].value_counts())
+        router_income = dict(router_info_df.groupby("node")["fee"].sum())
+        print("simulation on original snapshot data is DONE")
+        # prediction part
         pred_events_params = list(zip(pred_events["record_id"],pred_events["src"], pred_events["target_node_set"], pred_events["trg"], pred_events["time"], pred_events["capacity"]))
         if max_threads > 1:
-            f_partial = functools.partial(get_target_ranks, self.current_capacity_map, self.G, self.transactions, self.amount_sat, weight)
+            f_partial = functools.partial(get_target_ranks, total_depletions, router_traffic, router_income, self.current_capacity_map, self.G, self.transactions, self.amount_sat, weight)
             executor = concurrent.futures.ProcessPoolExecutor(max_threads)
             ranks = list(executor.map(f_partial, pred_events_params))
             executor.shutdown()
         else:
-            ranks = [get_target_ranks(self.current_capacity_map, self.G, self.transactions, self.amount_sat, weight, pe) for pe in pred_events_params]
+            ranks = [get_target_ranks(total_depletions, router_traffic, router_income, self.current_capacity_map, self.G, self.transactions, self.amount_sat, weight, pe) for pe in pred_events_params]
         return ranks
     
 ### experiment ###
@@ -164,14 +162,15 @@ def load_graph_snapshots(file_path, ts_upper_bound=1553390858, verbose=False):
     time_boundaries = time_boundaries[:(i+1)]
     return snapshots, time_boundaries
 
-def process_links_for_simulator(links_df, preds, time_boundaries, only_eval=True, verbose=False):
+def process_links_for_simulator(top_k, links_df, preds, time_boundaries, only_eval=True, verbose=False):
     links_tmp = links_df.copy()
     if only_eval:
         links_tmp = links_tmp[links_tmp["eval"]==1]
     links_tmp["record_id"] = links_tmp.index
     # set target node set
     if preds is None:
-        links_for_sim = links_tmp[["src","trg","time","eval","record_id"]]
+        links_for_sim = links_tmp[["src","trg","capacity","time","eval","record_id"]]
+        links_for_sim["target_node_set"] = top_k
     else:
         id_to_pub = dict(zip(links_tmp["user"],links_tmp["src"]))
         id_to_pub.update(dict(zip(links_tmp["item"],links_tmp["trg"])))
@@ -189,7 +188,8 @@ def process_links_for_simulator(links_df, preds, time_boundaries, only_eval=True
     return links_for_sim
 
 class SimulatedLinkPredExperiment():
-    def __init__(self, snapshot_file_path, links_file_path, preds_file_path, node_meta_file_path, tx_fee_sat, tx_num, eps=0.05, alpha=None, drop_disabled=True):
+    def __init__(self, top_k, snapshot_file_path, links_file_path, preds_file_path, node_meta_file_path, tx_fee_sat, tx_num, eps=0.05, alpha=None, drop_disabled=True):
+        self.top_k = top_k
         # simulation parameters
         self.tx_fee_sat = tx_fee_sat
         self.tx_num = tx_num
@@ -199,8 +199,8 @@ class SimulatedLinkPredExperiment():
         # load files
         self.snapshots, self.time_boundaries = load_graph_snapshots(snapshot_file_path)
         self.links_df = pd.read_csv(links_file_path)
-        self.preds = pd.read_csv(preds_file_path)
-        self.preds = self.preds.sort_values(["record_id","rank"])
+        self.preds = None#pd.read_csv(preds_file_path)
+        #self.preds = self.preds.sort_values(["record_id","rank"])
         # model id
         base_model_id = preds_file_path.split("/")[-1].replace("preds_","").replace(".csv","")
         simulator_id = "%isat_k%i_a%s_e%.2f_drop%s" % (tx_fee_sat, tx_num, str(alpha), eps, drop_disabled)
@@ -211,7 +211,7 @@ class SimulatedLinkPredExperiment():
         self.providers = list(node_meta["pub_key"])
     
     def preprocess(self):
-        self.links_for_sim = process_links_for_simulator(self.links_df, self.preds, self.time_boundaries, verbose=True)
+        self.links_for_sim = process_links_for_simulator(self.top_k, self.links_df, self.preds, self.time_boundaries, verbose=True)
         
     def run(self, output_prefix, snapshots_ids=None, max_threads=4):
         output_dir = "%s/%s" % (output_prefix, self.experiment_id)
