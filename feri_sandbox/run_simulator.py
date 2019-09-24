@@ -14,9 +14,11 @@ num_transactions = ph.get("num_transactions")
 alpha = ph.get("alpha")
 day_interval = ph.get("day_interval")
 drop_disabled = ph.get("drop_disabled")
+drop_low_cap = False#True
 
 data_dir = ph.get("data_dir")
-output_dir = "%s/simulations_%idays/%s/%s" % (data_dir, day_interval, snapshot_id, experiment_id)
+#output_dir = "%s/simulations_%idays/%s/%s" % (data_dir, day_interval, snapshot_id, experiment_id)
+output_dir = "%s/simulations/%s/%s" % (data_dir, snapshot_id, experiment_id)
 print(output_dir)
 
 if not os.path.exists(output_dir):
@@ -33,7 +35,7 @@ edges = snapshots[snapshots["snapshot_id"]==snapshot_id]
 
 # 3. Simulation
 
-simulator = ts.TransactionSimulator(edges, providers, amount_sat, num_transactions, alpha=alpha, drop_disabled=drop_disabled)
+simulator = ts.TransactionSimulator(edges, providers, amount_sat, num_transactions, alpha=alpha, drop_disabled=drop_disabled, drop_low_cap=drop_low_cap)
 transactions = simulator.transactions
 shortest_paths, alternative_paths, all_router_fees = simulator.simulate(weight="total_fee", with_node_removals=False)
 total_income, total_fee = simulator.export(output_dir)

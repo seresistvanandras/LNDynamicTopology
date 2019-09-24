@@ -12,6 +12,14 @@
             "path": "feri_sandbox/JournalPlots.ipynb",
             "pipeline_status": "on",
             "type": "Visualization"
+        },
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "TransactionFailureAnalysis",
+            "path": "feri_sandbox/TransactionFailureAnalysis.ipynb",
+            "pipeline_status": "on",
+            "type": "Analysis"
         }
     ],
     "parameter_notebooks": [],

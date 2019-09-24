@@ -8,7 +8,6 @@
         "drop_disabled": true,
         "experiment_id": "trial",
         "num_transactions": 6000,
-        "sim_dir": "2019-09-03_15:28:05_50000sat_k5000_aNone_dropFalse",
         "snapshot_id": 0,
         "snapshot_ids": [
             0,
@@ -35,8 +34,20 @@
     "imports": [
         {
             "kernel_type": "py3-env",
+            "name": "graph_preprocessing",
+            "path": "feri_sandbox/python/graph_preprocessing.py",
+            "type": "Utils"
+        },
+        {
+            "kernel_type": "py3-env",
             "name": "ln_utils",
             "path": "feri_sandbox/ln_utils.py",
+            "type": "Utils"
+        },
+        {
+            "kernel_type": "py3-env",
+            "name": "path_searching",
+            "path": "feri_sandbox/python/path_searching.py",
             "type": "Utils"
         },
         {
@@ -95,6 +106,14 @@
         }
     ],
     "py_scripts": [
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "NodeRoutingIncomeStats",
+            "path": "feri_sandbox/python/node_routing_income_stats.py",
+            "pipeline_status": "off",
+            "type": "Postprocessor"
+        },
         {
             "is_clone": "no",
             "kernel_type": "py3-env",
