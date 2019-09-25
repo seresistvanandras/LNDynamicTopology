@@ -11,10 +11,13 @@ experiment_id = ph.get("experiment_id")
 snapshot_id = ph.get("snapshot_id")
 amount_sat = ph.get("amount_sat")
 num_transactions = ph.get("num_transactions")
-alpha = ph.get("alpha")
+eps = ph.get("eps")
 day_interval = ph.get("day_interval")
 drop_disabled = ph.get("drop_disabled")
-drop_low_cap = False#True
+drop_low_cap = ph.get("drop_low_cap")
+with_depletion = ph.get("with_depletion")
+
+find_alternative_paths = False
 
 data_dir = ph.get("data_dir")
 #output_dir = "%s/simulations_%idays/%s/%s" % (data_dir, day_interval, snapshot_id, experiment_id)
@@ -35,16 +38,18 @@ edges = snapshots[snapshots["snapshot_id"]==snapshot_id]
 
 # 3. Simulation
 
-simulator = ts.TransactionSimulator(edges, providers, amount_sat, num_transactions, alpha=alpha, drop_disabled=drop_disabled, drop_low_cap=drop_low_cap)
+simulator = ts.TransactionSimulator(edges, providers, amount_sat, num_transactions, drop_disabled=drop_disabled, drop_low_cap=drop_low_cap, eps=eps, with_depletion=with_depletion)
 transactions = simulator.transactions
-shortest_paths, alternative_paths, all_router_fees = simulator.simulate(weight="total_fee", with_node_removals=False)
+shortest_paths, alternative_paths, all_router_fees = simulator.simulate(weight="total_fee", with_node_removals=find_alternative_paths)
 total_income, total_fee = simulator.export(output_dir)
 
 # 4. Stats
 
-#print("Total income:", total_income.sum())
+print("Total income:", total_income.sum())
 
 # 5. Analyze optimal routing fee for nodes
-#opt_fees_df, p_altered = ts.calc_optimal_base_fee(shortest_paths, alternative_paths, all_router_fees)
-#opt_fees_df.to_csv("%s/opt_fees.csv" % output_dir, index=False)
-#print("done")
+if find_alternative_paths:
+    opt_fees_df, p_altered = ts.calc_optimal_base_fee(shortest_paths, alternative_paths, all_router_fees)
+    opt_fees_df.to_csv("%s/opt_fees.csv" % output_dir, index=False)
+
+print("done")

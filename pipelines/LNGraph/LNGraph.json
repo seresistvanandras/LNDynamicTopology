@@ -1,11 +1,12 @@
 {
     "config_path": "pipelines/LNGraph/LNGraph.json",
     "default_config": {
-        "alpha": null,
         "amount_sat": 50000,
         "data_dir": "/mnt/idms/fberes/data/bitcoin_ln_research",
         "day_interval": 7,
         "drop_disabled": true,
+        "drop_low_cap": true,
+        "eps": 0.8,
         "experiment_id": "trial",
         "num_transactions": 6000,
         "snapshot_id": 0,
@@ -27,7 +28,8 @@
             "capacity",
             "fee_base_msat",
             "fee_rate_milli_msat"
-        ]
+        ],
+        "with_depletion": true
     },
     "description": "Experimenting with Bitcoin LN network over time.",
     "id": "0",

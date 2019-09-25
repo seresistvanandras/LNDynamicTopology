@@ -42,7 +42,7 @@ def prepare_edges_for_simulation(edges, amount_sat, drop_disabled, drop_low_cap,
         print("Number of edges after aggregation: %i" % len(directed_aggr_edges))
     return directed_aggr_edges
 
-def init_node_params(edges, providers, eps, alpha=None, verbose=True):
+def init_node_params(edges, providers, verbose=True):
     """Initialize source and target distribution of each node in order to drawn transaction at random later."""
     G = nx.from_pandas_edgelist(edges, source="src", target="trg", edge_attr=["capacity"], create_using=nx.DiGraph())
     active_providers = list(set(providers).intersection(set(G.nodes())))
@@ -53,11 +53,8 @@ def init_node_params(edges, providers, eps, alpha=None, verbose=True):
     degrees = pd.DataFrame(list(G.degree()), columns=["pub_key","degree"])
     total_capacity = pd.DataFrame(list(nx.degree(G, weight="capacity")), columns=["pub_key","total_capacity"])
     node_variables = degrees.merge(total_capacity, on="pub_key")
-    if alpha == None:
-        get_src_rayleigh_proba(node_variables)
-    else:
-        get_src_proba(node_variables, alpha)
-    get_trg_proba(node_variables, eps, active_providers)
+    #get_src_rayleigh_proba(node_variables)
+    #get_trg_proba(node_variables, eps=0.95, active_providers)
     return node_variables, active_providers, active_ratio
 
 def generate_graph_for_path_search(edges, transactions, amount_sat):

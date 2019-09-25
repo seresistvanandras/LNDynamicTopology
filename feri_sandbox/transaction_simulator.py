@@ -36,18 +36,19 @@ def get_shortest_paths_with_node_removals(capacity_map, G, hashed_transactions, 
     return pd.concat(alternative_paths)
 
 class TransactionSimulator():
-    def __init__(self, edges, providers, amount_sat, k, eps=0.05, alpha=2.0, drop_disabled=True, drop_low_cap=True, time_window=None, verbose=True):
+    def __init__(self, edges, providers, amount_sat, k, eps=0.2, drop_disabled=True, drop_low_cap=True, with_depletion=True, time_window=None, verbose=True):
         self.verbose = verbose
+        self.with_depletion = with_depletion
         self.amount = amount_sat
         self.edges = prepare_edges_for_simulation(edges, amount_sat, drop_disabled, drop_low_cap, time_window, verbose=self.verbose)
-        self.node_variables, self.providers, active_ratio = init_node_params(self.edges, providers, eps, alpha, verbose=self.verbose)
-        self.transactions = sample_transactions(self.node_variables, amount_sat, k)
+        self.node_variables, self.providers, active_ratio = init_node_params(self.edges, providers, verbose=self.verbose)
+        self.transactions = sample_transactions(self.node_variables, amount_sat, k, eps, self.providers)
         self.params = {
             "amount":amount_sat,
             "count":k,
             "epsilon":eps,
-            "alpha":alpha,
-            "drop":drop_disabled,
+            "with_depletion":with_depletion,
+            "drop_disabled":drop_disabled,
             "drop_low_cap": drop_low_cap,
             "time_window":time_window,
             "active_providers":len(self.providers),
@@ -55,8 +56,12 @@ class TransactionSimulator():
         }
     
     def simulate(self, weight=None, with_node_removals=True, max_threads=8):
-        current_capacity_map, edges_with_capacity = init_capacities(self.edges, self.transactions, self.amount)
-        G = generate_graph_for_path_search(edges_with_capacity, self.transactions, self.amount)
+        if self.with_depletion:
+            current_capacity_map, edges_with_capacity = init_capacities(self.edges, self.transactions, self.amount)
+            G = generate_graph_for_path_search(edges_with_capacity, self.transactions, self.amount)
+        else:
+            current_capacity_map = None
+            G = generate_graph_for_path_search(self.edges, self.transactions, self.amount)
         print("Graph and capacities were INITIALIZED")
         print("Using weight='%s' for the simulation" % weight)
         print("Transactions simulated on original graph STARTED..")
@@ -110,7 +115,7 @@ def get_total_fee_for_sources(transactions, shortest_paths):
     agg_funcs = dict(original_cost='mean', transaction_id='count')
     aggs = trans_with_costs.groupby(by="source")["original_cost"].agg(agg_funcs).rename({"original_cost":"mean_fee","transaction_id":"num_trans"}, axis=1)
     return aggs
-
+"""
 def calculate_node_influence(shortest_paths, alternative_paths):
     s_paths = shortest_paths.copy().drop("path", axis=1)
     a_paths = alternative_paths.copy().drop("path", axis=1)
@@ -121,7 +126,7 @@ def calculate_node_influence(shortest_paths, alternative_paths):
     harmonic_sums = routing_diff.drop("transaction_id", axis=1).groupby(by="node").aggregate({"cost":"sum","original_cost":"sum"})
     harmonic_sums["cost_diff"] = harmonic_sums["original_cost"] - harmonic_sums["cost"]
     return harmonic_sums.sort_values("cost_diff", ascending=False), routing_diff
-
+"""
 def get_experiment_files(experiment_id, snapshots, simulation_dir):
     files = {}
     for snap_id in snapshots:
@@ -130,7 +135,7 @@ def get_experiment_files(experiment_id, snapshots, simulation_dir):
             if experiment_id in f:
                 files[snap_id].append("%s/%i/%s" % (simulation_dir, snap_id, f))
     return files
-
+"""
 def aggregate_samples(experiment_files, snapshot_id):
     samples = []
     for i, f in enumerate(experiment_files[snapshot_id]):
@@ -151,6 +156,7 @@ def merge_with_other_metrics(mean_costs, snapshot_id, weight=None):
     all_info = all_info.rename({str(snapshot_id):"pop"}, axis=1)
     all_info = all_info.fillna(0)
     return all_info
+"""
 
 ### optimal fee pricing ###
 
