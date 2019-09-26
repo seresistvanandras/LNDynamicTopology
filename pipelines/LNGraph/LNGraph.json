@@ -9,6 +9,8 @@
         "eps": 0.8,
         "experiment_id": "trial",
         "num_transactions": 6000,
+        "sim_res_dir": "2019-09-25_15:48:42_50000sat_k6000_eps0.00",
+        "sim_root_dir": "/mnt/idms/fberes/data/bitcoin_ln_research/simulations_7days/",
         "snapshot_id": 0,
         "snapshot_ids": [
             0,
@@ -20,6 +22,15 @@
             6,
             7,
             8
+        ],
+        "snapshots": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
         ],
         "weight": null,
         "weight_cols": [
@@ -34,6 +45,12 @@
     "description": "Experimenting with Bitcoin LN network over time.",
     "id": "0",
     "imports": [
+        {
+            "kernel_type": "py3-env",
+            "name": "analysis_utils",
+            "path": "feri_sandbox/python/analysis_utils.py",
+            "type": "Utils"
+        },
         {
             "kernel_type": "py3-env",
             "name": "graph_preprocessing",
@@ -114,7 +131,7 @@
             "name": "NodeRoutingIncomeStats",
             "path": "feri_sandbox/python/node_routing_income_stats.py",
             "pipeline_status": "off",
-            "type": "Postprocessor"
+            "type": "Analysis"
         },
         {
             "is_clone": "no",
@@ -123,6 +140,14 @@
             "path": "feri_sandbox/run_simulator.py",
             "pipeline_status": "off",
             "type": "Simulator"
+        },
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "SimulationStability",
+            "path": "feri_sandbox/python/simulation_stability.py",
+            "pipeline_status": "off",
+            "type": "Analysis"
         }
     ],
     "reports": [

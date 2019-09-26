@@ -126,16 +126,7 @@ def calculate_node_influence(shortest_paths, alternative_paths):
     harmonic_sums = routing_diff.drop("transaction_id", axis=1).groupby(by="node").aggregate({"cost":"sum","original_cost":"sum"})
     harmonic_sums["cost_diff"] = harmonic_sums["original_cost"] - harmonic_sums["cost"]
     return harmonic_sums.sort_values("cost_diff", ascending=False), routing_diff
-"""
-def get_experiment_files(experiment_id, snapshots, simulation_dir):
-    files = {}
-    for snap_id in snapshots:
-        files[snap_id] = []
-        for f in os.listdir("%s/%i" % (simulation_dir, snap_id)):
-            if experiment_id in f:
-                files[snap_id].append("%s/%i/%s" % (simulation_dir, snap_id, f))
-    return files
-"""
+
 def aggregate_samples(experiment_files, snapshot_id):
     samples = []
     for i, f in enumerate(experiment_files[snapshot_id]):

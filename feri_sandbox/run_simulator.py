@@ -20,8 +20,8 @@ with_depletion = ph.get("with_depletion")
 find_alternative_paths = False
 
 data_dir = ph.get("data_dir")
-#output_dir = "%s/simulations_%idays/%s/%s" % (data_dir, day_interval, snapshot_id, experiment_id)
-output_dir = "%s/simulations/%s/%s" % (data_dir, snapshot_id, experiment_id)
+output_dir = "%s/simulations_%idays/%s/%s" % (data_dir, day_interval, snapshot_id, experiment_id)
+#output_dir = "%s/simulations/%s/%s" % (data_dir, snapshot_id, experiment_id)
 print(output_dir)
 
 if not os.path.exists(output_dir):

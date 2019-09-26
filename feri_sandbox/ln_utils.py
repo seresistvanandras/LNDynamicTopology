@@ -85,33 +85,6 @@ def load_centrality_scores(stat_dir, snapshot_ids, weight_cols, drop_cols=[]):
             stats[w].append(snap_stat)
     return stats
 
-def load_data(experiment_files, snapshots, file_postfix):
-    """Load the output files of transaction simulator"""
-    parts = []
-    for snap_id in snapshots:
-        data_files = []
-        for f in experiment_files[snap_id]:
-            sample_id = f.split(".")[-1]
-            if file_postfix == "lengths_distrib":
-                df = pd.read_csv("%s/%s.csv" % (f, file_postfix), names=["length","count"])
-            else:
-                df = pd.read_csv("%s/%s.csv" % (f, file_postfix))
-            df["sample"] = int(sample_id)
-            data_files.append(df)
-        tmp_df = pd.concat(data_files, axis=0, sort=False)
-        tmp_df["snapshot_id"] = snap_id
-        parts.append(tmp_df)
-        #print(snap_id)
-    return parts
-
-def handle_img(fig_id, outside=False, img_dir="/mnt/idms/fberes/data/bitcoin_ln_research/results/", anchor=(1.02, 1.02)):
-    if outside:
-        lgd = plt.legend(loc=2,bbox_to_anchor=anchor)
-        plt.savefig("%s/%s.pdf" % (img_dir, fig_id), format="pdf", bbox_extra_artists=(lgd,), bbox_inches='tight')
-    else:
-        lgd = plt.legend(loc=8, ncol=2)
-        plt.savefig("%s/%s.pdf" % (img_dir, fig_id), format="pdf")
-
 ### network centrality analysis ###
 
 def get_snapshots(edges_df, weight_cols=None):

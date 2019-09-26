@@ -1,9 +1,10 @@
 import pandas as pd
+import numpy as np
+import os
 
 import sys
 sys.path.insert(0,"../")
-from ln_utils import load_data
-from transaction_simulator import get_experiment_files
+from analysis_utils import *
 
 from datawand.parametrization import ParamHelper
 ph = ParamHelper('../..', 'LNGraph', sys.argv)
@@ -25,18 +26,25 @@ simulation_dir = ph.get("sim_root_dir")
 
 experiment_folders = get_experiment_files(experiment_id, snapshots, simulation_dir)
 router_income = load_data(experiment_folders, snapshots, "router_incomes")
-router_income_col = "fee"
 all_router_incomes = pd.concat(router_income)
 
 # LNBIG.com traffic and income timeseries
-lnb_router_incomes = all_router_incomes[all_router_incomes["node"].isin(LNBIG_nodes)].groupby(["node","snapshot_id"]).agg({router_income_col:"mean","num_trans":"mean"}).sort_values(router_income_col,ascending=False).reset_index()
-lnb_router_incomes = lnb_router_incomes.groupby("snapshot_id").agg({router_income_col:"sum","num_trans":"sum"}).reset_index()
-
+#lnb_router_incomes = all_router_incomes[all_router_incomes["node"].isin(LNBIG_nodes)].groupby(["node","snapshot_id"])[["fee","num_trans"]].mean().sort_values("fee", ascending=False).reset_index()
+#lnb_router_incomes = lnb_router_incomes.groupby("snapshot_id")[["fee","num_trans"]].sum().reset_index()
 #sns.lineplot(x="snapshot_id",y="num_trans",data=lnb_router_incomes)
 
-# Calculate average routing income and traffic over snapshots and samples
-all_router_incomes = all_router_incomes.groupby("node").agg({router_income_col:"mean","num_trans":"mean"}).sort_values(router_income_col,ascending=False).reset_index()
+# Calculate average routing income and traffic over snapshots and samples for every node
+groups = all_router_incomes.groupby("node")
+aggregated = groups.agg({
+    "fee" : {"mean_fee":np.mean,"std_fee":np.std},
+    "num_trans" : {"mean_num_trans":np.mean,"std_num_trans":np.std},
+})
+aggregated.columns = aggregated.columns.droplevel(0)
+all_router_incomes = aggregated.reset_index().sort_values(["mean_fee","mean_num_trans"], ascending=False)
+
 all_router_incomes = all_router_incomes.merge(node_names, left_on="node", right_on="pub_key", how="left").drop("pub_key", axis=1).set_index("node")
+
+print(all_router_incomes[all_router_incomes["mean_num_trans"]>=10.0].head(50))
 
 # nodes above 50SAT mean daily income + more than 10 transactions per day
 other_routers = [
@@ -62,13 +70,20 @@ other_routers = [
     "031678745383bd273b4c3dbefc8ffbf4847d85c2f62d3407c0c980430b3257c403",#lightning-roulette.com
 ]
 
-node_income_and_traffic = all_router_incomes.loc[other_routers].reset_index(drop=True)
-print(node_income_and_traffic)
+selected_node_stats = all_router_incomes.loc[other_routers].reset_index(drop=True)
 
 # Export
-lnbig_stats = all_router_incomes.loc[LNBIG_nodes][["fee","num_trans"]].sum()
+lnbig_stats = all_router_incomes.loc[LNBIG_nodes][["mean_fee","mean_num_trans"]].sum()
 lnbig_stats["name"] = "LNBIG.com"
-node_income_and_traffic = node_income_and_traffic.append(lnbig_stats, ignore_index=True).sort_values("name")
-node_income_and_traffic.to_csv("/mnt/idms/fberes/data/bitcoin_ln_research/results/router_traffic_and_income/%s.csv" % experiment_id, index=False)
+selected_node_stats = selected_node_stats.append(lnbig_stats, ignore_index=True).sort_values("name")
+
+print(selected_node_stats)
+
+output_dir = "/mnt/idms/fberes/data/bitcoin_ln_research/results/router_traffic_and_income"
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+
+selected_node_stats.to_csv("%s/%s_selected.csv" % (output_dir, experiment_id), index=False)
+all_router_incomes.to_csv("%s/%s_all.csv" % (output_dir, experiment_id), index=True)
 
 print("done")
