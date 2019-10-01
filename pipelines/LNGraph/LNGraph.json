@@ -1,14 +1,14 @@
 {
     "config_path": "pipelines/LNGraph/LNGraph.json",
     "default_config": {
-        "amount_sat": 50000,
+        "amount_sat": 60000,
         "data_dir": "/mnt/idms/fberes/data/bitcoin_ln_research",
         "day_interval": 7,
         "drop_disabled": true,
         "drop_low_cap": true,
         "eps": 0.8,
         "experiment_id": "trial",
-        "num_transactions": 6000,
+        "num_transactions": 7000,
         "sim_res_dir": "2019-09-25_15:48:42_50000sat_k6000_eps0.00",
         "sim_root_dir": "/mnt/idms/fberes/data/bitcoin_ln_research/simulations_7days/",
         "snapshot_id": 0,
@@ -140,6 +140,14 @@
             "path": "feri_sandbox/run_simulator.py",
             "pipeline_status": "off",
             "type": "Simulator"
+        },
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "RunSimulator1Days",
+            "path": "feri_sandbox/run_simulator_1days.py",
+            "pipeline_status": "off",
+            "type": "MultiSimulator"
         },
         {
             "is_clone": "no",

@@ -13,21 +13,25 @@ amount_sat = ph.get("amount_sat")
 num_transactions = ph.get("num_transactions")
 eps = ph.get("eps")
 day_interval = ph.get("day_interval")
-drop_disabled = ph.get("drop_disabled")
-drop_low_cap = ph.get("drop_low_cap")
-with_depletion = ph.get("with_depletion")
 
+#drop_disabled = ph.get("drop_disabled")
+#drop_low_cap = ph.get("drop_low_cap")
+#with_depletion = ph.get("with_depletion")
+#find_alternative_paths = True
+
+drop_disabled = True
+drop_low_cap = True
+with_depletion = True
 find_alternative_paths = False
 
 data_dir = ph.get("data_dir")
-output_dir = "%s/simulations_%idays/%s/%s" % (data_dir, day_interval, snapshot_id, experiment_id)
-#output_dir = "%s/simulations/%s/%s" % (data_dir, snapshot_id, experiment_id)
+#output_dir = "%s/simulations_fee_opt_%idays/%s/%s" % (data_dir, day_interval, snapshot_id, experiment_id)
+#output_dir = "%s/simulations_%idays/%s/%s" % (data_dir, day_interval, snapshot_id, experiment_id)
+output_dir = "%s/simulations_multi/%s/%s" % (data_dir, snapshot_id, experiment_id)
 print(output_dir)
 
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
-    
-output_file = "%s/%s.csv" % (output_dir, experiment_id)
 
 # 2. Load data
 

@@ -151,53 +151,71 @@ def merge_with_other_metrics(mean_costs, snapshot_id, weight=None):
 
 ### optimal fee pricing ###
 
-def calculate_max_income(n, p_altered, shortest_paths, all_router_fees, visualize=False, min_ratio=0.0):
-    trans = p_altered[p_altered["node"] == n]
-    trans = trans.merge(shortest_paths, on="transaction_id", how="inner")#'original_cost' column merged
-    trans = trans.merge(all_router_fees, on=["transaction_id","node"], how="inner")#'fee' column is merged
-    trans["delta_cost"] = trans["cost"] - trans["original_cost"]
-    ordered_deltas = trans[["transaction_id","fee","delta_cost"]].sort_values("delta_cost")
-    ordered_deltas["delta_cost"] = ordered_deltas["delta_cost"].apply(lambda x: round(x, 2))
-    thresholds = [0.0] + sorted(list(ordered_deltas["delta_cost"].unique()))
+def inspect_base_fee_thresholds(ordered_deltas, pos_thresholds, min_ratio):
+    thresholds = [0.0] + pos_thresholds
     original_income = ordered_deltas["fee"].sum()
     original_num_transactions = len(ordered_deltas)
     incomes, probas = [original_income], [1.0]
-    # inspect only posiive deltas
+    # inspect only positive deltas
     for th in thresholds[1:]:
+        # transactions that will still pay the increased base_fee
         df = ordered_deltas[ordered_deltas["delta_cost"] >= th]
         prob = len(df) / original_num_transactions
-        total = df["fee"].sum() + len(df) * th
-        incomes.append(total)
         probas.append(prob)
+        # adjusted router income at the new threshold
+        adj_income = df["fee"].sum() + len(df) * th
+        incomes.append(adj_income)
         if prob < min_ratio:
             break
-    max_idx = np.argmax(incomes)
+    return incomes, probas, thresholds, original_income, original_num_transactions
+
+def visualize_thresholds(incomes, probas, thresholds, original_num_transactions):
+    fig, ax1 = plt.subplots()
+    x = thresholds[:len(incomes)]
+    ax1.set_title(original_num_transactions)
+    ax1.plot(x, incomes, 'bx-')
+    ax1.set_xscale("log")
+    ax2 = ax1.twinx()
+    ax2.plot(x, probas, 'gx-')
+    ax2.set_xscale("log")
+
+def calculate_max_income(n, p_altered, shortest_paths, all_router_fees, visualize=False, min_ratio=0.0):
+    trans = p_altered[p_altered["node"] == n]
+    trans = trans.merge(shortest_paths[["transaction_id","original_cost"]], on="transaction_id", how="inner")
+    trans = trans.merge(all_router_fees, on=["transaction_id","node"], how="inner")#'fee' column is merged
+    # router could ask for this cost difference
+    trans["delta_cost"] = trans["cost"] - trans["original_cost"]
+    ordered_deltas = trans[["transaction_id","fee","delta_cost"]].sort_values("delta_cost")
+    ordered_deltas["delta_cost"] = ordered_deltas["delta_cost"].apply(lambda x: round(x, 2))
+    pos_thresholds = sorted(list(ordered_deltas[ordered_deltas["delta_cost"]>0.0]["delta_cost"].unique()))
+    incomes, probas, thresholds, alt_income, alt_num_trans = inspect_base_fee_thresholds(ordered_deltas, pos_thresholds, min_ratio)
     if visualize:
-        fig, ax1 = plt.subplots()
-        ax1.set_title(original_num_transactions)
-        ax1.plot(thresholds[:len(incomes)], incomes, 'bx-')
-        ax1.set_xscale("log")
-        ax2 = ax1.twinx()
-        ax2.plot(thresholds[:len(incomes)], probas, 'gx-')
-        ax2.set_xscale("log")
-    return thresholds[max_idx], incomes[max_idx], probas[max_idx], original_income, original_num_transactions
+        visualize_thresholds(incomes, probas, thresholds, alt_num_trans)
+    max_idx = np.argmax(incomes)
+    return thresholds[max_idx], incomes[max_idx], probas[max_idx], alt_income, alt_num_trans
 
 def calc_optimal_base_fee(shortest_paths, alternative_paths, all_router_fees):
-    # drop failed paths
-    valid_sp = shortest_paths[shortest_paths["length"]!=-1]
-    # drop failed paths
+    # paths with length at least 2
+    valid_sp = shortest_paths[shortest_paths["length"]>1]
+    # drop failed alternative paths
     p_altered = alternative_paths[~alternative_paths["cost"].isnull()]
-    "Path ratio that have alternative routing after removals: %f" % (len(p_altered) / len(alternative_paths))
+    #print("Path ratio that have alternative routing after removals: %f" % (len(p_altered) / len(alternative_paths)))
     num_routers = len(alternative_paths["node"].unique())
     num_routers_with_alternative_paths = len(p_altered["node"].unique())
-    "Node ratio that have alternative routing after removals: %f" % (num_routers_with_alternative_paths / num_routers)
+    #print("Node ratio that have alternative routing after removals: %f" % (num_routers_with_alternative_paths / num_routers))
     routers = list(p_altered["node"].unique())
     opt_strategy = []
     for n in tqdm(routers, mininterval=5):
         opt_delta, opt_income, opt_ratio, origi_income, origi_num_trans = calculate_max_income(n, p_altered, valid_sp, all_router_fees, visualize=False)
-        opt_strategy.append((n, opt_delta, opt_ratio, opt_income, origi_income, origi_num_trans))
-    opt_fees_df = pd.DataFrame(opt_strategy, columns=["node","opt_delta","opt_traffic","opt_income","origi_income", "origi_num_trans"])
-    opt_fees_df = opt_fees_df.sort_values("origi_income", ascending=False)
-    print("Mean fee pricing statistics:")
-    print(opt_fees_df[["opt_delta","opt_traffic","origi_num_trans"]].mean())
-    return opt_fees_df, p_altered
+        opt_strategy.append((n, opt_delta, opt_income, opt_ratio, origi_income, origi_num_trans))
+    opt_fees_df = pd.DataFrame(opt_strategy, columns=["node", "opt_delta", "opt_income", "opt_traffic", "alt_income", "alt_traffic"])
+    total_income = get_total_income_for_routers(all_router_fees).rename({"fee":"total_income","num_trans":"total_traffic"}, axis=1)
+    merged_infos = total_income.merge(opt_fees_df, on="node", how="outer")
+    merged_infos = merged_infos.sort_values("total_income", ascending=False)
+    print(merged_infos.isnull().sum() / len(merged_infos))
+    merged_infos = merged_infos.fillna(0.0)
+    merged_infos["failed_traffic_ratio"] = (merged_infos["total_traffic"] - merged_infos["alt_traffic"]) / merged_infos["total_traffic"]
+    merged_infos["failed_income_ratio"] = (merged_infos["total_income"] - merged_infos["alt_income"]) / merged_infos["total_income"]
+    merged_infos["income_diff"] = merged_infos["opt_income"] - merged_infos["alt_income"]
+    print(merged_infos.drop("node", axis=1).mean())
+    return merged_infos, p_altered
