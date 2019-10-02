@@ -28,7 +28,7 @@ source_traf_cross = reshape_cross_corr_df(source_traf_cross, corrs)
 
 router_inc_cross["statistics"] = "routing income"
 router_traf_cross["statistics"] = "routing traffic"
-source_fee_cross["statistics"] = "sender fee"
+source_fee_cross["statistics"] = "sender transaction fee"
 source_traf_cross["statistics"] = "sender traffic"
 
 stability_res = pd.concat([router_inc_cross, router_traf_cross, source_fee_cross, source_traf_cross])
