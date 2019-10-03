@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import sys, os, json
 
-sys.path.insert(0,"./python")
 from transaction_sampling import sample_transactions
 from graph_preprocessing import *
 from path_searching import get_shortest_paths
@@ -36,7 +35,7 @@ def get_shortest_paths_with_node_removals(capacity_map, G, hashed_transactions, 
     return pd.concat(alternative_paths)
 
 class TransactionSimulator():
-    def __init__(self, edges, providers, amount_sat, k, eps=0.2, drop_disabled=True, drop_low_cap=True, with_depletion=True, time_window=None, verbose=True):
+    def __init__(self, edges, providers, amount_sat, k, eps=0.8, drop_disabled=True, drop_low_cap=True, with_depletion=True, time_window=None, verbose=True):
         self.verbose = verbose
         self.with_depletion = with_depletion
         self.amount = amount_sat
@@ -55,36 +54,39 @@ class TransactionSimulator():
             "active_ratio":active_ratio
         }
     
-    def simulate(self, weight=None, with_node_removals=True, max_threads=8):
+    def simulate(self, weight=None, with_node_removals=True, max_threads=8, verbose=True):
         if self.with_depletion:
             current_capacity_map, edges_with_capacity = init_capacities(self.edges, self.transactions, self.amount)
             G = generate_graph_for_path_search(edges_with_capacity, self.transactions, self.amount)
         else:
             current_capacity_map = None
             G = generate_graph_for_path_search(self.edges, self.transactions, self.amount)
-        print("Graph and capacities were INITIALIZED")
-        print("Using weight='%s' for the simulation" % weight)
-        print("Transactions simulated on original graph STARTED..")
-        shortest_paths, hashed_transactions, all_router_fees, _ = get_shortest_paths(current_capacity_map, G, self.transactions, cost_prefix="original_", weight=weight)
+        if verbose:
+            print("Graph and capacities were INITIALIZED")
+            print("Using weight='%s' for the simulation" % weight)
+            print("Transactions simulated on original graph STARTED..")
+        shortest_paths, hashed_transactions, all_router_fees, total_depletions = get_shortest_paths(current_capacity_map, G, self.transactions, hash_transactions=with_node_removals, cost_prefix="original_", weight=weight)
         success_tx_ids = set(all_router_fees["transaction_id"])
         self.transactions["success"] = self.transactions["transaction_id"].apply(lambda x: x in success_tx_ids)
-        print("Transactions simulated on original graph DONE")
-        print("Transaction succes rate:")
-        print(self.transactions["success"].value_counts() / len(self.transactions))
-        print("Length distribution of optimal paths:")
-        print(shortest_paths["length"].value_counts())
-        print("Transactions simulated with node removals STARTED..")
+        if verbose:
+            print("Transactions simulated on original graph DONE")
+            print("Transaction succes rate:")
+            print(self.transactions["success"].value_counts() / len(self.transactions))
+            print("Length distribution of optimal paths:")
+            print(shortest_paths["length"].value_counts())
+            print("Transactions simulated with node removals STARTED..")
         if with_node_removals:
             alternative_paths = get_shortest_paths_with_node_removals(current_capacity_map, G, hashed_transactions, weight=weight, threads=max_threads)
-            print("Transactions simulated with node removals DONE")
-            print("Length distribution of optimal paths:")
-            print(alternative_paths["length"].value_counts())
+            if verbose:
+                print("Transactions simulated with node removals DONE")
+                print("Length distribution of optimal paths:")
+                print(alternative_paths["length"].value_counts())
         else:
             alternative_paths = pd.DataFrame([])
         self.shortest_paths = shortest_paths
         self.alternative_paths = alternative_paths
         self.all_router_fees = all_router_fees
-        return shortest_paths, alternative_paths, all_router_fees
+        return shortest_paths, alternative_paths, all_router_fees, total_depletions
     
     def export(self, output_dir):
         if not os.path.exists(output_dir):

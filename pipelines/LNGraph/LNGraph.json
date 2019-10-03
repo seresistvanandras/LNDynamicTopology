@@ -72,7 +72,7 @@
         {
             "kernel_type": "py3-env",
             "name": "transaction_simulator",
-            "path": "feri_sandbox/transaction_simulator.py",
+            "path": "feri_sandbox/python/transaction_simulator.py",
             "type": "Simulator"
         }
     ],

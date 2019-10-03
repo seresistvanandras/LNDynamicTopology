@@ -1,24 +1,19 @@
 {
     "config_path": "pipelines/LinkPredSim/LinkPredSim.json",
     "default_config": {
-        "base_model": "time_pop",
+        "drop_disabled": true,
+        "drop_low_cap": true,
+        "epsilon": 0.8,
+        "time_window": null,
         "top_first_days": 20,
         "topk": 20,
-        "tx_alpha": null,
-        "tx_drop_disabled": true,
-        "tx_fee_sat": 50000,
-        "tx_num": 6000
+        "tx_fee_sat": 60000,
+        "tx_num": 7000,
+        "with_depletion": true
     },
     "description": "Pipeline for link prediction with LN transaction simulation",
     "id": "3",
-    "imports": [
-        {
-            "kernel_type": "py3-env",
-            "name": "link_pred_simulator",
-            "path": "feri_sandbox/link_pred_simulator.py",
-            "type": "Simulator"
-        }
-    ],
+    "imports": [],
     "name": "LinkPredSim",
     "notebooks": [],
     "parameter_notebooks": [

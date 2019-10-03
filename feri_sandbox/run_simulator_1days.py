@@ -1,5 +1,6 @@
 import pandas as pd
 import os, sys
+sys.path.insert(0,"./python")
 import transaction_simulator as ts
 from datawand.parametrization import ParamHelper
 
@@ -42,7 +43,7 @@ for snapshot_id in snapshots:
 
         simulator = ts.TransactionSimulator(edges, providers, amount_sat, num_transactions, drop_disabled=drop_disabled, drop_low_cap=drop_low_cap, eps=eps, with_depletion=with_depletion)
         transactions = simulator.transactions
-        shortest_paths, alternative_paths, all_router_fees = simulator.simulate(weight="total_fee", with_node_removals=find_alternative_paths)
+        shortest_paths, alternative_paths, all_router_fees, _ = simulator.simulate(weight="total_fee", with_node_removals=find_alternative_paths)
         total_income, total_fee = simulator.export(output_dir)
         
         print()
