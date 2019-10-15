@@ -1,9 +1,9 @@
 import pandas as pd
 import numpy as np
 import networkx as nx
-import matplotlib.pyplot as plt
-from tqdm import tqdm
-import os, operator
+import os
+
+from link_prediction_simulator import LinkSimulator
 
 ### experiment ###
 
@@ -35,14 +35,11 @@ def process_links_for_simulator(top_k, links_df, time_boundaries, verbose=True):
         print("EVAL:", links_tmp[links_tmp["eval"]==1]["snapshot"].value_counts())
     return links_tmp
 
-import sys
-sys.path.insert(0,"./python")
-from link_prediction_simulator import LinkSimulator
-
 class SimulatedLinkPredExperiment():
-    def __init__(self, top_k, snapshot_file_path, links_file_path, node_meta_file_path, tx_fee_sat, tx_num, eps, drop_disabled=True, drop_low_cap=True, with_depletion=True, time_window=None, only_triangles=False, verbose=False):
+    def __init__(self, top_k, half_life, snapshot_file_path, links_file_path, node_meta_file_path, tx_fee_sat, tx_num, eps, drop_disabled=True, drop_low_cap=True, with_depletion=True, time_window=None, only_triangles=False, verbose=False):
         self.verbose = verbose
         self.top_k = top_k
+        self.half_life = half_life
         self.only_triangles = only_triangles
         # simulation parameters
         self.tx_fee_sat = tx_fee_sat
@@ -60,7 +57,7 @@ class SimulatedLinkPredExperiment():
         # prediction records
         self.links_df = pd.read_csv(links_file_path)
         # model id
-        self.experiment_id = "%isat_k%i_e%.2f_dd%s_dlc%s_wd%s_tw%s_ot%s" % (tx_fee_sat, tx_num, eps, drop_disabled, drop_low_cap, with_depletion, str(time_window), only_triangles)
+        self.experiment_id = "%isat_k%i_e%.2f_dd%s_dlc%s_wd%s_tw%s_ot%s_hl%s" % (tx_fee_sat, tx_num, eps, drop_disabled, drop_low_cap, with_depletion, str(time_window), only_triangles, str(half_life))
     
     def preprocess(self):
         self.links_for_sim = process_links_for_simulator(self.top_k, self.links_df, self.time_boundaries, verbose=True)
@@ -79,7 +76,7 @@ class SimulatedLinkPredExperiment():
             snap_edges = self.snapshots[self.snapshots["snapshot_id"] == snap_id]
             G = nx.from_pandas_edgelist(snap_edges, source="src", target="trg", edge_attr=["capacity"], create_using=nx.MultiDiGraph())
             sim = LinkSimulator(snap_edges, self.providers, self.tx_fee_sat, self.tx_num, eps=self.eps, drop_disabled=self.drop_disabled, drop_low_cap=self.drop_low_cap, with_depletion=self.with_depletion, time_window=self.time_window)
-            ranks, preds = sim.predict(G, self.links_for_sim, snap_id, self.top_k, self.only_triangles)
+            ranks, preds = sim.predict(G, self.links_for_sim, snap_id, self.top_k, self.only_triangles, self.half_life)
             header = ["record_id", "src", "trg", "time", "capacity", "eval", "snapshot", "global_traffic", "global_income", "inbound_depletions", "high_degree", "high_cap"]
             pred_cols = header[-5:]
             ranks_df = pd.DataFrame(list(ranks), columns=header)

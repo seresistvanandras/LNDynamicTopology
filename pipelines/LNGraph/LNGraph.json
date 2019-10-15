@@ -152,6 +152,14 @@
         {
             "is_clone": "no",
             "kernel_type": "py3-env",
+            "name": "RunSimulatorWithEntityExclusion",
+            "path": "feri_sandbox/run_entity_exclusion.py",
+            "pipeline_status": "off",
+            "type": "Experiment"
+        },
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
             "name": "SimulationStability",
             "path": "feri_sandbox/python/simulation_stability.py",
             "pipeline_status": "off",

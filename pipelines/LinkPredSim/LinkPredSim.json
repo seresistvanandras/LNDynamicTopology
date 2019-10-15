@@ -4,6 +4,7 @@
         "drop_disabled": true,
         "drop_low_cap": true,
         "epsilon": 0.8,
+        "half_life": null,
         "time_window": null,
         "top_first_days": 20,
         "topk": 20,
@@ -13,9 +14,31 @@
     },
     "description": "Pipeline for link prediction with LN transaction simulation",
     "id": "3",
-    "imports": [],
+    "imports": [
+        {
+            "kernel_type": "py3-env",
+            "name": "link_prediction_simulator",
+            "path": "feri_sandbox/python/link_prediction_simulator.py",
+            "type": "Utils"
+        },
+        {
+            "kernel_type": "py3-env",
+            "name": "link_sim_experiment",
+            "path": "feri_sandbox/python/link_sim_experiment.py",
+            "type": "Utils"
+        }
+    ],
     "name": "LinkPredSim",
-    "notebooks": [],
+    "notebooks": [
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "Untitled",
+            "path": "feri_sandbox/python/Untitled.ipynb",
+            "pipeline_status": "off",
+            "type": "Trial"
+        }
+    ],
     "parameter_notebooks": [
         {
             "kernel_type": "py3-env",

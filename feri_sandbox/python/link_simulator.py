@@ -1,8 +1,7 @@
 import sys
 from datawand.parametrization import ParamHelper
 
-sys.path.insert(0,"../")
-from link_pred_simulator import SimulatedLinkPredExperiment
+from link_sim_experiment import SimulatedLinkPredExperiment
 
 ph = ParamHelper('../..', 'LinkPredSim', sys.argv)
 
@@ -22,8 +21,9 @@ drop_disabled = ph.get("drop_disabled")
 drop_low_cap = ph.get("drop_low_cap")
 with_depletion = ph.get("with_depletion")
 time_window = ph.get("time_window")
+half_life = ph.get("half_life")
 
-experiment = SimulatedLinkPredExperiment(top_k, snapshot_fp, links_fp, node_meta_fp, tx_fee_sat, tx_num, epsilon, drop_disabled, drop_low_cap, with_depletion, time_window, only_triangles=False, verbose=False)
+experiment = SimulatedLinkPredExperiment(top_k, half_life, snapshot_fp, links_fp, node_meta_fp, tx_fee_sat, tx_num, epsilon, drop_disabled, drop_low_cap, with_depletion, time_window, only_triangles=False, verbose=False)
 
 experiment.preprocess()
 

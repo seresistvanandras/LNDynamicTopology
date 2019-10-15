@@ -54,21 +54,31 @@ class TransactionSimulator():
             "active_ratio":active_ratio
         }
     
-    def simulate(self, weight=None, with_node_removals=True, max_threads=8, verbose=True):
+    def simulate(self, weight=None, with_node_removals=True, max_threads=8, excluded=[]):
         if self.with_depletion:
             current_capacity_map, edges_with_capacity = init_capacities(self.edges, self.transactions, self.amount)
             G = generate_graph_for_path_search(edges_with_capacity, self.transactions, self.amount)
         else:
             current_capacity_map = None
             G = generate_graph_for_path_search(self.edges, self.transactions, self.amount)
-        if verbose:
+        if len(excluded) > 0:
+            print(G.number_of_edges(), G.number_of_nodes())
+            for node in excluded:
+                if node in G.nodes():
+                    G.remove_node(node)
+                pseudo_node = str(node) + "_trg"
+                if pseudo_node in G.nodes():
+                    G.remove_node(pseudo_node)
+            print(G.number_of_edges(), G.number_of_nodes())
+            print("Additional nodes were EXCLUDED!")
+        if self.verbose:
             print("Graph and capacities were INITIALIZED")
             print("Using weight='%s' for the simulation" % weight)
             print("Transactions simulated on original graph STARTED..")
         shortest_paths, hashed_transactions, all_router_fees, total_depletions = get_shortest_paths(current_capacity_map, G, self.transactions, hash_transactions=with_node_removals, cost_prefix="original_", weight=weight)
         success_tx_ids = set(all_router_fees["transaction_id"])
         self.transactions["success"] = self.transactions["transaction_id"].apply(lambda x: x in success_tx_ids)
-        if verbose:
+        if self.verbose:
             print("Transactions simulated on original graph DONE")
             print("Transaction succes rate:")
             print(self.transactions["success"].value_counts() / len(self.transactions))
@@ -77,7 +87,7 @@ class TransactionSimulator():
             print("Transactions simulated with node removals STARTED..")
         if with_node_removals:
             alternative_paths = get_shortest_paths_with_node_removals(current_capacity_map, G, hashed_transactions, weight=weight, threads=max_threads)
-            if verbose:
+            if self.verbose:
                 print("Transactions simulated with node removals DONE")
                 print("Length distribution of optimal paths:")
                 print(alternative_paths["length"].value_counts())
