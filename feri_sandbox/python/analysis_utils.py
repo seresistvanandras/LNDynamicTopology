@@ -1,4 +1,4 @@
-import sys, os
+import sys, os, json
 sys.path.insert(0,"../")
 from ln_utils import corr_mx
 
@@ -51,6 +51,10 @@ def load_data(experiment_files, snapshots, file_postfix):
             sample_id = f.split(".")[-1]
             if file_postfix == "lengths_distrib":
                 df = pd.read_csv("%s/%s.csv" % (f, file_postfix), names=["length","count"])
+            elif file_postfix == "global_failure_ratios":
+                with open("%s/global_failure_ratios.json" % f) as json_f:
+                    ratios = json.load(json_f)
+                df = pd.DataFrame(ratios.items(), columns=["entity","failure_ratio"])
             else:
                 df = pd.read_csv("%s/%s.csv" % (f, file_postfix))
             df["sample"] = int(sample_id)
