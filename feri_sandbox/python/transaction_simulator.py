@@ -54,7 +54,7 @@ class TransactionSimulator():
             "active_ratio":active_ratio
         }
     
-    def simulate(self, weight=None, with_node_removals=True, max_threads=8, excluded=[]):
+    def simulate(self, weight=None, with_node_removals=True, max_threads=8, excluded=[], required_length=None):
         if self.with_depletion:
             current_capacity_map, edges_with_capacity = init_capacities(self.edges, self.transactions, self.amount)
             G = generate_graph_for_path_search(edges_with_capacity, self.transactions, self.amount)
@@ -75,7 +75,7 @@ class TransactionSimulator():
             print("Graph and capacities were INITIALIZED")
             print("Using weight='%s' for the simulation" % weight)
             print("Transactions simulated on original graph STARTED..")
-        shortest_paths, hashed_transactions, all_router_fees, total_depletions = get_shortest_paths(current_capacity_map, G, self.transactions, hash_transactions=with_node_removals, cost_prefix="original_", weight=weight)
+        shortest_paths, hashed_transactions, all_router_fees, total_depletions = get_shortest_paths(current_capacity_map, G, self.transactions, hash_transactions=with_node_removals, cost_prefix="original_", weight=weight, required_length=required_length)
         success_tx_ids = set(all_router_fees["transaction_id"])
         self.transactions["success"] = self.transactions["transaction_id"].apply(lambda x: x in success_tx_ids)
         if self.verbose:
@@ -84,8 +84,9 @@ class TransactionSimulator():
             print(self.transactions["success"].value_counts() / len(self.transactions))
             print("Length distribution of optimal paths:")
             print(shortest_paths["length"].value_counts())
-            print("Transactions simulated with node removals STARTED..")
         if with_node_removals:
+            if self.verbose:
+                print("Transactions simulated with node removals STARTED..")
             alternative_paths = get_shortest_paths_with_node_removals(current_capacity_map, G, hashed_transactions, weight=weight, threads=max_threads)
             if self.verbose:
                 print("Transactions simulated with node removals DONE")

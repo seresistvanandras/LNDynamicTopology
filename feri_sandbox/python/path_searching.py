@@ -2,8 +2,10 @@ import networkx as nx
 import pandas as pd
 import numpy as np
 import copy
+from collections import Counter
+from genetic_routing import GeneticPaymentRouter
 
-def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions=True, cost_prefix="", weight="total_fee"):
+def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions=True, cost_prefix="", weight="total_fee", required_length=None):
     G = G_origi.copy()# copy due to forthcoming graph capacity changes!!!
     capacity_map = copy.deepcopy(init_capacities)
     with_depletion = capacity_map != None
@@ -11,6 +13,7 @@ def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions
     total_depletions = dict()
     router_fee_tuples = []
     hashed_transactions = {}
+    genetic_rounds = []
     for idx, row in transactions.iterrows():
         p, cost = [], None
         try:
@@ -19,6 +22,14 @@ def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions
                 shortest_paths.append((row["transaction_id"], cost, len(p)-1, p))
                 continue
             p = nx.shortest_path(G, source=S, target=T, weight=weight)
+            if required_length != None:
+                if len(p)-1 < required_length:
+                    # TODO: execute with weights!!!
+                    gpr = GeneticPaymentRouter(required_length, G)#, router_weights)
+                    _, _, p_new, num_rounds = gpr.run(p, size=100, best_ratio=0.25)
+                    genetic_rounds.append(num_rounds)
+                    if num_rounds != -1:
+                        p = p_new
             if row["target"] in p:
                 raise RuntimeError("Loop detected: %s" % row["target"])
             cost, router_fees, depletions = process_path(p, row["amount_SAT"], capacity_map, G,  "total_fee", with_depletion)
@@ -38,6 +49,8 @@ def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions
             raise
         finally:
             shortest_paths.append((row["transaction_id"], cost, len(p)-1, p))
+    cnt = Counter(genetic_rounds)
+    print(cnt.most_common())
     if hash_transactions:
         for node in hashed_transactions:
             hashed_transactions[node] = pd.DataFrame(hashed_transactions[node], columns=transactions.columns)
