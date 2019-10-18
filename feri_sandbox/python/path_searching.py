@@ -23,8 +23,8 @@ def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions
                 continue
             p = nx.shortest_path(G, source=S, target=T, weight=weight)
             if required_length != None:
-                if len(p)-1 < required_length:
-                    # TODO: execute with weights!!!
+                if len(p) > 2 and len(p)-1 < required_length:
+                    # extend only non-direct short chanels!
                     gpr = GeneticPaymentRouter(required_length, G)#, router_weights)
                     _, _, p_new, num_rounds = gpr.run(p, size=100, best_ratio=0.25)
                     genetic_rounds.append(num_rounds)
@@ -49,11 +49,12 @@ def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions
             raise
         finally:
             shortest_paths.append((row["transaction_id"], cost, len(p)-1, p))
-    cnt = Counter(genetic_rounds)
-    print(cnt.most_common())
     if hash_transactions:
         for node in hashed_transactions:
             hashed_transactions[node] = pd.DataFrame(hashed_transactions[node], columns=transactions.columns)
+    else:
+        cnt = Counter(genetic_rounds)
+        print(cnt.most_common())
     all_router_fees = pd.DataFrame(router_fee_tuples, columns=["transaction_id","node","fee"])
     return pd.DataFrame(shortest_paths, columns=["transaction_id", cost_prefix+"cost", "length", "path"]), hashed_transactions,  all_router_fees, total_depletions
 

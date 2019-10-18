@@ -26,7 +26,8 @@ with_depletion = True
 find_alternative_paths = True#False
 
 data_dir = ph.get("data_dir")
-output_dir = "%s/simulations_fee_opt_%idays/%s/%s" % (data_dir, day_interval, snapshot_id, experiment_id)
+output_dir = "%s/simulations_fee_opt_again_%idays/%s/%s" % (data_dir, day_interval, snapshot_id, experiment_id)
+#output_dir = "%s/simulations_fee_opt_%idays/%s/%s" % (data_dir, day_interval, snapshot_id, experiment_id)
 #output_dir = "%s/simulations_%idays/%s/%s" % (data_dir, day_interval, snapshot_id, experiment_id)
 #output_dir = "%s/simulations_multi/%s/%s" % (data_dir, snapshot_id, experiment_id)
 print(output_dir)

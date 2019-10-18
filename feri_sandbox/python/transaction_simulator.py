@@ -227,8 +227,9 @@ def calc_optimal_base_fee(shortest_paths, alternative_paths, all_router_fees):
     merged_infos = merged_infos.sort_values("total_income", ascending=False)
     print(merged_infos.isnull().sum() / len(merged_infos))
     merged_infos = merged_infos.fillna(0.0)
-    merged_infos["failed_traffic_ratio"] = (merged_infos["total_traffic"] - merged_infos["alt_traffic"]) / merged_infos["total_traffic"]
+    merged_infos["failed_traffic"] = merged_infos["total_traffic"] - merged_infos["alt_traffic"]
+    merged_infos["failed_traffic_ratio"] = merged_infos["failed_traffic"] / merged_infos["total_traffic"]
     merged_infos["failed_income_ratio"] = (merged_infos["total_income"] - merged_infos["alt_income"]) / merged_infos["total_income"]
-    merged_infos["income_diff"] = merged_infos["opt_income"] - merged_infos["alt_income"]
+    merged_infos["income_diff"] = merged_infos.apply(lambda x: x["opt_income"] - x["alt_income"] +  x["failed_traffic"] * x["opt_delta"], axis=1)
     print(merged_infos.drop("node", axis=1).mean())
     return merged_infos, p_altered
