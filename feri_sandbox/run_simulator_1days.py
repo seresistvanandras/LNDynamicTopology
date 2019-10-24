@@ -28,7 +28,7 @@ CNT = 0
 for snapshot_id in snapshots:
     for sample_id in samples:
         experiment_id = "%isat_k%i_eps%.2f.%i" % (amount_sat, num_transactions, eps, sample_id)
-        output_dir = "%s/simulations_multi/%s/%s" % (data_dir, snapshot_id, experiment_id)
+        output_dir = "%s/simulations_param_tuning/%s/%s" % (data_dir, snapshot_id, experiment_id)
         print(output_dir)
 
         if not os.path.exists(output_dir):
@@ -40,7 +40,7 @@ for snapshot_id in snapshots:
         edges = snapshots[snapshots["snapshot_id"]==snapshot_id]
 
         # 3. Simulation
-
+        
         simulator = ts.TransactionSimulator(edges, providers, amount_sat, num_transactions, drop_disabled=drop_disabled, drop_low_cap=drop_low_cap, eps=eps, with_depletion=with_depletion)
         transactions = simulator.transactions
         shortest_paths, alternative_paths, all_router_fees, _ = simulator.simulate(weight="total_fee", with_node_removals=find_alternative_paths)
