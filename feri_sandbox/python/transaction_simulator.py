@@ -97,6 +97,7 @@ class TransactionSimulator():
         self.shortest_paths = shortest_paths
         self.alternative_paths = alternative_paths
         self.all_router_fees = all_router_fees
+        self.total_depletions = total_depletions
         return shortest_paths, alternative_paths, all_router_fees, total_depletions
     
     def export(self, output_dir):
@@ -110,6 +111,8 @@ class TransactionSimulator():
         total_income.to_csv("%s/router_incomes.csv" % output_dir, index=False)
         total_fee = get_total_fee_for_sources(self.transactions, self.shortest_paths)
         total_fee.to_csv("%s/source_fees.csv" % output_dir, index=True)
+        depletions_df = pd.DataFrame(list(self.total_depletions.items()), columns=["node","cnt"]).sort_values("cnt", ascending=False)
+        depletions_df.to_csv("%s/node_depletions.csv" % output_dir, index=False)
         if len(self.alternative_paths) > 0: 
             print(self.alternative_paths["cost"].isnull().value_counts())
         print("Export DONE")

@@ -17,12 +17,13 @@ print(len(LNBIG_nodes))
 
 node_names = node_names[["name","pub_key"]]
 
-experiment_id = ph.get("sim_res_dir")
-snapshots = ph.get("snapshots")
-simulation_dir = ph.get("sim_root_dir")
-#experiment_id = "60000sat_k7000_eps0.80"
-#snapshots = range(40)
-#simulation_dir = "/mnt/idms/fberes/data/bitcoin_ln_research/simulations_multi/"
+#experiment_id = ph.get("sim_res_dir")
+#snapshots = ph.get("snapshots")
+#simulation_dir = ph.get("sim_root_dir")
+
+experiment_id = "60000sat_k7000_eps0.80_wdepFalse"
+snapshots = range(40)
+simulation_dir = "/mnt/idms/fberes/data/bitcoin_ln_research/simulations_depletions_1days/"
 
 experiment_folders = get_experiment_files(experiment_id, snapshots, simulation_dir)
 router_income = load_data(experiment_folders, snapshots, "router_incomes")
@@ -50,10 +51,10 @@ all_router_incomes = all_router_incomes.reset_index()
 #aggregated.columns = aggregated.columns.droplevel(0)
 #all_router_incomes = aggregated.reset_index().sort_values(["mean_fee","mean_num_trans"], ascending=False)
 
-all_router_incomes = all_router_incomes.merge(node_names, left_on="node", right_on="pub_key", how="left").drop("pub_key", axis=1).set_index("node")
+all_router_incomes = all_router_incomes.merge(node_names, left_on="node", right_on="pub_key", how="left").drop("pub_key", axis=1).set_index("node").sort_values("mean_fee", ascending=False)
 
 #all_router_incomes.to_csv("mean_node_stats.csv")
-#all_router_incomes[all_router_incomes["num_trans"]>=10.0].to_csv("mean_node_stats_10.csv")
+all_router_incomes[all_router_incomes["num_trans"]>=10.0].to_csv("mean_node_stats_10.csv")
 #print(all_router_incomes[all_router_incomes["mean_num_trans"]>=10.0].head(50))
 
 other_routers = relevant_routers()

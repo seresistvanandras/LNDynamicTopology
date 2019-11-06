@@ -17,16 +17,16 @@ day_interval = ph.get("day_interval")
 
 #drop_disabled = ph.get("drop_disabled")
 #drop_low_cap = ph.get("drop_low_cap")
-#with_depletion = ph.get("with_depletion")
+with_depletion = ph.get("with_depletion")
 #find_alternative_paths = True
 
 drop_disabled = True
 drop_low_cap = True
-with_depletion = True
-find_alternative_paths = True#False
+#with_depletion = True
+find_alternative_paths = False
 
 data_dir = ph.get("data_dir")
-output_dir = "%s/simulations_fee_opt_again_%idays/%s/%s" % (data_dir, day_interval, snapshot_id, experiment_id)
+output_dir = "%s/simulations_depletions_%idays/%s/%s" % (data_dir, day_interval, snapshot_id, experiment_id)
 #output_dir = "%s/simulations_fee_opt_%idays/%s/%s" % (data_dir, day_interval, snapshot_id, experiment_id)
 #output_dir = "%s/simulations_%idays/%s/%s" % (data_dir, day_interval, snapshot_id, experiment_id)
 #output_dir = "%s/simulations_multi/%s/%s" % (data_dir, snapshot_id, experiment_id)
