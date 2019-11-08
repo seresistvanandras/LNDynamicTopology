@@ -10,7 +10,8 @@ def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions
     capacity_map = copy.deepcopy(init_capacities)
     with_depletion = capacity_map != None
     shortest_paths = []
-    total_depletions = dict()
+    inbound_depletions = dict()
+    outbound_depletions = dict()
     router_fee_tuples = []
     hashed_transactions = {}
     genetic_rounds = []
@@ -34,8 +35,13 @@ def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions
                 raise RuntimeError("Loop detected: %s" % row["target"])
             cost, router_fees, depletions = process_path(p, row["amount_SAT"], capacity_map, G,  "total_fee", with_depletion)
             if with_depletion:
-                for dep_node in depletions:
-                    total_depletions[dep_node] = total_depletions.get(dep_node, 0) + 1
+                for n1, n2 in depletions:
+                    if not n2 in inbound_depletions:
+                        inbound_depletions[n2] = set([])
+                    if not n1 in outbound_depletions:
+                        outbound_depletions[n1] = set([])
+                    inbound_depletions[n2].add(n1)
+                    outbound_depletions[n1].add(n2)
             routers = list(router_fees.keys())
             router_fee_tuples += list(zip([row["transaction_id"]]*len(router_fees),router_fees.keys(),router_fees.values()))
             if hash_transactions:
@@ -56,7 +62,7 @@ def get_shortest_paths(init_capacities, G_origi, transactions, hash_transactions
         cnt = Counter(genetic_rounds)
         print(cnt.most_common())
     all_router_fees = pd.DataFrame(router_fee_tuples, columns=["transaction_id","node","fee"])
-    return pd.DataFrame(shortest_paths, columns=["transaction_id", cost_prefix+"cost", "length", "path"]), hashed_transactions,  all_router_fees, total_depletions
+    return pd.DataFrame(shortest_paths, columns=["transaction_id", cost_prefix+"cost", "length", "path"]), hashed_transactions,  all_router_fees, inbound_depletions, outbound_depletions
 
 def process_path(path, amount_in_satoshi, capacity_map, G, weight, with_depletion):
     routers = {}
@@ -66,16 +72,16 @@ def process_path(path, amount_in_satoshi, capacity_map, G, weight, with_depletio
         n1, n2 = path[i], path[i+1]
         routers[n2] = G[n1][n2][weight]
         if with_depletion:
-            n2_removed = process_forward_edge(capacity_map, G, amount_in_satoshi, n1, n2)
-            if n2_removed:
-                depletions.append(n2)
+            depleted = process_forward_edge(capacity_map, G, amount_in_satoshi, n1, n2)
+            if depleted:
+                depletions.append((n1,n2))
             process_backward_edge(capacity_map, G, amount_in_satoshi, n2, n1)
     # last node in path is always a pseudo node
     n1, n2 = path[N-2], path[N-1].replace("_trg","")
     if with_depletion:
-        n2_removed = process_forward_edge(capacity_map, G, amount_in_satoshi, n1, n2)
-        if n2_removed:
-            depletions.append(n2)
+        depleted = process_forward_edge(capacity_map, G, amount_in_satoshi, n1, n2)
+        if depleted:
+            depletions.append((n1,n2))
         process_backward_edge(capacity_map, G, amount_in_satoshi, n2, n1)
     return np.sum(list(routers.values())), routers, depletions
 

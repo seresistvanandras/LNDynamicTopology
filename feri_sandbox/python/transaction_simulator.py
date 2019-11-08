@@ -14,7 +14,7 @@ def shortest_paths_with_exclusion(capacity_map, G, cost_prefix, weight, hash_buc
     H.remove_node(node)
     if node + "_trg" in G.nodes():
         H.remove_node(node + "_trg") # delete node copy as well
-    new_paths, _, _, _ = get_shortest_paths(capacity_map, H, bucket_transactions,  hash_transactions=False, cost_prefix=cost_prefix, weight=weight)
+    new_paths, _, _, _, _ = get_shortest_paths(capacity_map, H, bucket_transactions,  hash_transactions=False, cost_prefix=cost_prefix, weight=weight)
     new_paths["node"] = node
     return new_paths
 
@@ -75,7 +75,7 @@ class TransactionSimulator():
             print("Graph and capacities were INITIALIZED")
             print("Using weight='%s' for the simulation" % weight)
             print("Transactions simulated on original graph STARTED..")
-        shortest_paths, hashed_transactions, all_router_fees, total_depletions = get_shortest_paths(current_capacity_map, G, self.transactions, hash_transactions=with_node_removals, cost_prefix="original_", weight=weight, required_length=required_length)
+        shortest_paths, hashed_transactions, all_router_fees, inbound_depletions, outbound_depletions = get_shortest_paths(current_capacity_map, G, self.transactions, hash_transactions=with_node_removals, cost_prefix="original_", weight=weight, required_length=required_length)
         success_tx_ids = set(all_router_fees["transaction_id"])
         self.transactions["success"] = self.transactions["transaction_id"].apply(lambda x: x in success_tx_ids)
         if self.verbose:
@@ -97,8 +97,8 @@ class TransactionSimulator():
         self.shortest_paths = shortest_paths
         self.alternative_paths = alternative_paths
         self.all_router_fees = all_router_fees
-        self.total_depletions = total_depletions
-        return shortest_paths, alternative_paths, all_router_fees, total_depletions
+        self.total_depletions = get_depletions_df(inbound_depletions, outbound_depletions)
+        return shortest_paths, alternative_paths, all_router_fees, self.total_depletions
     
     def export(self, output_dir):
         if not os.path.exists(output_dir):
@@ -111,14 +111,23 @@ class TransactionSimulator():
         total_income.to_csv("%s/router_incomes.csv" % output_dir, index=False)
         total_fee = get_total_fee_for_sources(self.transactions, self.shortest_paths)
         total_fee.to_csv("%s/source_fees.csv" % output_dir, index=True)
-        depletions_df = pd.DataFrame(list(self.total_depletions.items()), columns=["node","cnt"]).sort_values("cnt", ascending=False)
-        depletions_df.to_csv("%s/node_depletions.csv" % output_dir, index=False)
+        self.total_depletions.to_csv("%s/node_depletions.csv" % output_dir, index=False)
         if len(self.alternative_paths) > 0: 
             print(self.alternative_paths["cost"].isnull().value_counts())
         print("Export DONE")
         return total_income, total_fee
     
 ### process results ###
+
+def get_depletions_df(inbound_depletions, outbound_depletions):
+    inbound_df = pd.DataFrame(inbound_depletions.items(), columns=["node","inbound_deps"])
+    inbound_df["num_inbound"] = inbound_df["inbound_deps"].apply(len)
+    outbound_df = pd.DataFrame(outbound_depletions.items(), columns=["node","outbound_deps"])
+    outbound_df["num_outbound"] = outbound_df["outbound_deps"].apply(len)
+    depletions_df = inbound_df.merge(outbound_df, on="node", how="outer")
+    depletions_df["num_inbound"] = depletions_df["num_inbound"].fillna(0)
+    depletions_df["num_outbound"] = depletions_df["num_outbound"].fillna(0)
+    return depletions_df
 
 def get_total_income_for_routers(all_router_fees):
     grouped = all_router_fees.groupby("node")
