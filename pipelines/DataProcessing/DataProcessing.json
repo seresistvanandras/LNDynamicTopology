@@ -1,5 +1,13 @@
 {
     "config_path": "pipelines/DataProcessing/DataProcessing.json",
+    "default_config": {
+        "amount_sat": 60000,
+        "data_dir": "/mnt/idms/fberes/data/bitcoin_ln_research",
+        "day_interval": 7,
+        "drop_disabled": true,
+        "drop_low_cap": true,
+        "snapshot_id": 0
+    },
     "description": "Preprocessing LN graph data for experiments",
     "id": "1",
     "imports": [
@@ -18,6 +26,14 @@
     ],
     "name": "DataProcessing",
     "notebooks": [
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "BetweenessCalc",
+            "path": "feri_sandbox/BetweenessCalc.ipynb",
+            "pipeline_status": "off",
+            "type": "Betweeness"
+        },
         {
             "is_clone": "no",
             "kernel_type": "py3-env",
@@ -51,7 +67,13 @@
             "type": "Meta"
         }
     ],
-    "parameter_notebooks": [],
+    "parameter_notebooks": [
+        {
+            "kernel_type": "py3-env",
+            "name": "BetweenessParams",
+            "path": "pipelines/DataProcessing/BetweenessParams.ipynb"
+        }
+    ],
     "py_scripts": [],
     "reports": []
 }
