@@ -29,14 +29,6 @@
         {
             "is_clone": "no",
             "kernel_type": "py3-env",
-            "name": "BetweenessCalc",
-            "path": "feri_sandbox/BetweenessCalc.ipynb",
-            "pipeline_status": "off",
-            "type": "Betweeness"
-        },
-        {
-            "is_clone": "no",
-            "kernel_type": "py3-env",
             "name": "GetDirectedGraph",
             "path": "feri_sandbox/GetDirectedGraph.ipynb",
             "pipeline_status": "off",
@@ -74,6 +66,15 @@
             "path": "pipelines/DataProcessing/BetweenessParams.ipynb"
         }
     ],
-    "py_scripts": [],
+    "py_scripts": [
+        {
+            "is_clone": "no",
+            "kernel_type": "py3-env",
+            "name": "centrality_calculator",
+            "path": "feri_sandbox/python/centrality_calculator.py",
+            "pipeline_status": "off",
+            "type": "Centrality"
+        }
+    ],
     "reports": []
 }
